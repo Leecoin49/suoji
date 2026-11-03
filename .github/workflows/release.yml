@@ -63,8 +63,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.key_path }}
         run: pnpm tauri build --bundles nsis
 
-      # The bundle is named after productName (琐记), and non-ASCII file names get
-      # mangled on the Windows runner, so assets are renamed to ASCII first.
+      # The bundle is named after productName (琐记), and non-ASCII file names get mangled
+      # on the Windows runner, so the assets are renamed to ASCII before publishing.
       - name: Collect assets
         shell: pwsh
         run: |
@@ -79,10 +79,17 @@ jobs:
 
           # latest.json is what the updater endpoints point at; the signature inside it
           # is the minisign signature of the installer above.
+          $notesFile = "release-notes/$version.md"
+          if (Test-Path $notesFile) {
+            $notes = ([System.IO.File]::ReadAllText((Resolve-Path $notesFile))).Trim()
+          } else {
+            $notes = "See the release page for what changed."
+          }
+
           $base = "https://github.com/${{ github.repository }}/releases/download/$tag"
           $manifest = [ordered]@{
             version   = $version
-            notes     = "See the release page for what changed."
+            notes     = $notes
             pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{
@@ -93,6 +100,17 @@ jobs:
           }
           $json = $manifest | ConvertTo-Json -Depth 6
           [System.IO.File]::WriteAllText((Join-Path $PWD 'assets/latest.json'), $json, (New-Object System.Text.UTF8Encoding($false)))
+
+          # Same text as the release body, plus the download list GitHub readers expect.
+          $footer = @"
+
+          ---
+
+          - ``SuoJi_${version}_x64-setup.exe`` - installer, per-user, no admin rights
+          - ``SuoJi_${version}_x64-portable.exe`` - portable, nothing to install
+          - ``latest.json`` - update manifest read by the app
+          "@
+          [System.IO.File]::WriteAllText((Join-Path $PWD 'notes.md'), ($notes + $footer), (New-Object System.Text.UTF8Encoding($false)))
           Get-ChildItem assets | Select-Object Name, Length
 
       - name: Publish release
@@ -102,16 +120,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = "${{ inputs.tag || github.ref_name }}"
-          $notes = @"
-          Windows builds produced by CI: NSIS installer, per-user install, no admin rights needed.
-
-          - ``SuoJi_*_x64-setup.exe`` - installer
-          - ``SuoJi_*_x64-portable.exe`` - portable, no install
-          - ``latest.json`` - update manifest read by older builds
-
-          The app installs as 琐记 (Suoji). Data lives in ``%APPDATA%\com.tool.suoji\suoji.db``.
-          "@
-          $notes | Out-File -FilePath notes.md -Encoding utf8
           $assets = Get-ChildItem assets/* | ForEach-Object { $_.FullName }
 
           gh release view $tag *> $null

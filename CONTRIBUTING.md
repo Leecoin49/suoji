@@ -149,6 +149,10 @@ CI builds with `createUpdaterArtifacts`, renames the bundles to ASCII
 and uploads everything. `latest.json` is the file installed apps poll, so a
 release without it is a release nobody updates to.
 
+Write what changed in `release-notes/<version>.md` before tagging. That file
+becomes both the GitHub release body and the text the in-app update panel shows -
+English first, then a `---`, then the Chinese version.
+
 ## Sending a PR
 
 1. Fork, branch, keep the diff focused.

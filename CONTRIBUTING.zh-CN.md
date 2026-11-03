@@ -135,6 +135,9 @@ CI 会用 `createUpdaterArtifacts` 构建，把产物改成 ASCII 名（`SuoJi_<
 再用生成的 `.sig` 写 `latest.json`，一并上传。`latest.json` 就是已安装的应用会去拉的那份清单，
 少它等于这次发布没人能更新。
 
+打 tag 之前，先在新文件 `release-notes/<版本>.md` 里写这版改了什么。它同时是 GitHub release
+正文和应用内更新面板里显示的文案——先英文，一行 `---`，再中文。
+
 ## 提 PR
 
 1. Fork、开分支，保持 diff 聚焦。
