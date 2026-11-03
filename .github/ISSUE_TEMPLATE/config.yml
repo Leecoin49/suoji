@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How to use Suoji
+    url: https://github.com/Leecoin49/suoji#features
+    about: The README covers capture syntax, the close-out flow and where your data lives.
+  - name: Where is my data
+    url: https://github.com/Leecoin49/suoji#where-your-data-lives
+    about: One SQLite file under %APPDATA%\com.tool.suoji. Copy it to back up.

@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (for example v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (NSIS installer)
+        run: pnpm tauri build --bundles nsis
+
+      # The bundle is named after productName (琐记), and non-ASCII file names get
+      # mangled on the Windows runner, so assets are renamed to ASCII first.
+      - name: Collect assets
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force assets | Out-Null
+          Copy-Item $setup.FullName "assets/SuoJi_${version}_x64-setup.exe"
+          Copy-Item src-tauri/target/release/suoji.exe "assets/SuoJi_${version}_x64-portable.exe"
+          Get-ChildItem assets | Select-Object Name, Length
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          $notes = @"
+          Windows builds produced by CI: NSIS installer, per-user install, no admin rights needed.
+
+          - ``SuoJi_*_x64-setup.exe`` - installer
+          - ``SuoJi_*_x64-portable.exe`` - portable, no install
+
+          The app installs as 琐记 (Suoji). Data lives in ``%APPDATA%\com.tool.suoji\suoji.db``.
+          "@
+          $notes | Out-File -FilePath notes.md -Encoding utf8
+          $assets = Get-ChildItem assets/*.exe | ForEach-Object { $_.FullName }
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # Drop stale assets from earlier runs that mangled the non-ASCII name.
+            $stale = gh release view $tag --json assets --jq '.assets[].name' 2>$null
+            foreach ($name in $stale) {
+              if ($name -and $name -notmatch '^SuoJi_.*\.exe$') {
+                Write-Host "removing stale asset: $name"
+                gh release delete-asset $tag $name --yes
+              }
+            }
+            gh release upload $tag @assets --clobber
+          } else {
+            gh release create $tag @assets --title "Suoji $tag" --notes-file notes.md --verify-tag
+          }
+
+          # Deleting a tag silently turns its release into a draft, so force it public.
+          gh release edit $tag --draft=false --title "Suoji $tag" --notes-file notes.md
+
+          $view = gh release view $tag --json isDraft,assets | ConvertFrom-Json
+          "published: tag=$tag draft=$($view.isDraft)"
+          $view.assets | ForEach-Object { "  - $($_.name)" }
+          if ($view.isDraft) { throw "release $tag is still a draft" }

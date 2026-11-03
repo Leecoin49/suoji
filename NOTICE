@@ -1,0 +1,19 @@
+NOTICE
+SuoJi (琐记)
+Copyright 2026 Leecoin49
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Built with the following open-source projects, each distributed under its own
+license:
+
+- Tauri (https://github.com/tauri-apps/tauri) — MIT / Apache-2.0
+- Vue.js (https://github.com/vuejs/core) — MIT
+- Vite (https://github.com/vitejs/vite) — MIT
+- Tailwind CSS (https://github.com/tailwindlabs/tailwindcss) — MIT
+- Pinia (https://github.com/vuejs/pinia) — MIT
+- rusqlite (https://github.com/rusqlite/rusqlite) — MIT
+- Lucide icons (https://github.com/lucide-icons/lucide) — ISC
+- dayjs (https://github.com/iamkun/dayjs) — MIT
+
+The application icon and UI artwork were produced for this project.

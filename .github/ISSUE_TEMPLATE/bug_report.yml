@@ -1,0 +1,59 @@
+name: Bug report
+description: Something broke, crashed, or did not behave as described.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A screenshot and the version number save a lot of guessing.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: I pressed Enter after typing "call mom @tomorrow" and ...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Suoji
+        2. Type "..." and press Enter
+        3. See ...
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Suoji version
+      description: Shown in Settings, or the installer file name.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed
+      options:
+        - NSIS installer
+        - Portable exe
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 (26100)
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots or logs
+      description: Drag images here, or paste any console output.
+    validations:
+      required: false

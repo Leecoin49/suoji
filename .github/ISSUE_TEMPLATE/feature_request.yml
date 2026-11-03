@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest something that would make the day-to-day smoother.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suoji deliberately stays small: capture fast, sort itself out overnight,
+        show only what today needs. Ideas that add a habit are a hard sell -
+        ideas that remove one are very welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is annoying today
+      description: Describe the moment that feels wrong, not the solution.
+      placeholder: Every morning I still have to decide which inbox items to pull in.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like instead
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Capture / syntax
+        - Today view
+        - Close-out
+        - Reminders
+        - Look and feel
+        - Data / backup
+        - Something else
+    validations:
+      required: true
