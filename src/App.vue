@@ -10,16 +10,20 @@ import CloseOutSheet from "@/components/CloseOutSheet.vue";
 import SettingsSheet from "@/components/SettingsSheet.vue";
 import HistorySheet from "@/components/HistorySheet.vue";
 import HelpSheet from "@/components/HelpSheet.vue";
+import UpdateSheet from "@/components/UpdateSheet.vue";
 import { useDayStore } from "@/stores/day";
+import { useUpdateStore } from "@/stores/update";
 import { cn, heldDays } from "@/lib/utils";
 import { applyLocale, dayLabel, greeting, t, weekday } from "@/lib/i18n";
 
 const store = useDayStore();
+const updater = useUpdateStore();
 const capture = ref<InstanceType<typeof CaptureBar> | null>(null);
 const closeOutOpen = ref(false);
 const settingsOpen = ref(false);
 const historyOpen = ref(false);
 const helpOpen = ref(false);
+const updateOpen = ref(false);
 const doneOpen = ref(true);
 const noteDismissed = ref(false);
 let unlisten: UnlistenFn | null = null;
@@ -61,7 +65,17 @@ function openHistory() {
   closeOutOpen.value = false;
   settingsOpen.value = false;
   helpOpen.value = false;
+  updateOpen.value = false;
   historyOpen.value = true;
+}
+
+function openUpdate() {
+  closeOutOpen.value = false;
+  settingsOpen.value = false;
+  historyOpen.value = false;
+  helpOpen.value = false;
+  updateOpen.value = true;
+  if (updater.phase === "idle") void updater.checkNow();
 }
 
 const HELP_KEY = "suoji.helpSeen";
@@ -70,6 +84,7 @@ function openHelp() {
   closeOutOpen.value = false;
   historyOpen.value = false;
   settingsOpen.value = false;
+  updateOpen.value = false;
   helpOpen.value = true;
 }
 
@@ -91,6 +106,7 @@ function onKeydown(e: KeyboardEvent) {
     closeOutOpen.value = false;
     settingsOpen.value = false;
     historyOpen.value = false;
+    updateOpen.value = false;
     if (helpOpen.value) closeHelp();
   }
 }
@@ -116,6 +132,7 @@ async function boot() {
 
 onMounted(async () => {
   await boot();
+  void updater.init();
   unlisten = await listen("open-closeout", () => {
     closeOutOpen.value = true;
   });
@@ -130,7 +147,12 @@ onUnmounted(() => {
 
 <template>
   <div class="flex h-full flex-col overflow-hidden">
-    <TitleBar @settings="settingsOpen = true" @history="openHistory" @help="openHelp" />
+    <TitleBar
+      @settings="settingsOpen = true"
+      @history="openHistory"
+      @help="openHelp"
+      @update="openUpdate"
+    />
 
     <!-- Header -->
     <header class="shrink-0 px-8 pb-4 pt-1">
@@ -330,14 +352,16 @@ onUnmounted(() => {
       <CloseOutSheet v-if="closeOutOpen" @close="closeOutOpen = false" />
       <HistorySheet v-if="historyOpen" @close="historyOpen = false" />
       <HelpSheet v-if="helpOpen" @close="closeHelp" />
+      <UpdateSheet v-if="updateOpen" @close="updateOpen = false" />
       <SettingsSheet
         :open="settingsOpen"
         @close="settingsOpen = false"
         @help="settingsOpen = false; openHelp()"
+        @update="settingsOpen = false; openUpdate()"
       />
     </main>
 
-    <div v-if="!closeOutOpen && !historyOpen && !helpOpen" class="shrink-0 px-6">
+    <div v-if="!closeOutOpen && !historyOpen && !helpOpen && !updateOpen" class="shrink-0 px-6">
       <button
         v-if="store.tab === 'today' && store.tasks.length"
         :class="
@@ -351,6 +375,6 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <CaptureBar v-if="!closeOutOpen && !historyOpen && !helpOpen" ref="capture" />
+    <CaptureBar v-if="!closeOutOpen && !historyOpen && !helpOpen && !updateOpen" ref="capture" />
   </div>
 </template>

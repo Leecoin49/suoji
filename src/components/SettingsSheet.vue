@@ -3,11 +3,13 @@ import { ref, watch } from "vue";
 import { X } from "lucide-vue-next";
 import type { Settings } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
+import { useUpdateStore } from "@/stores/update";
 import { locale, t } from "@/lib/i18n";
 
 const props = defineProps<{ open: boolean }>();
 const store = useDayStore();
-const emit = defineEmits<{ (e: "close"): void; (e: "help"): void }>();
+const update = useUpdateStore();
+const emit = defineEmits<{ (e: "close"): void; (e: "help"): void; (e: "update"): void }>();
 
 const draft = ref<Settings>({ ...store.settings });
 const saved = ref(false);
@@ -105,6 +107,29 @@ const field =
             @click="store.setLocale('en')"
           >
             English
+          </button>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h3 class="text-[11px] font-medium tracking-[0.14em] text-ink-faint">
+          {{ t("settings.update") }}
+        </h3>
+        <label
+          class="flex cursor-pointer items-center justify-between rounded-xl bg-card px-3.5 py-2.5"
+        >
+          <span class="text-[13px] text-ink">{{ t("update.autoCheck") }}</span>
+          <input
+            :checked="update.autoCheck"
+            type="checkbox"
+            class="h-4 w-4 accent-accent"
+            @change="update.setAutoCheck(($event.target as HTMLInputElement).checked)"
+          />
+        </label>
+        <div class="flex items-center justify-between rounded-xl bg-card px-3.5 py-2.5">
+          <span class="text-[13px] text-ink">{{ t("update.current", { v: update.currentVersion || "—" }) }}</span>
+          <button class="text-[12.5px] text-accent hover:underline" @click="emit('update')">
+            {{ t("update.open") }}
           </button>
         </div>
       </section>

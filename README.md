@@ -89,7 +89,7 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
 
 ### Local by construction
 
-- No account, no server, no telemetry, no network calls.
+- No account, no server, no telemetry. The only network call is the update check, and you can turn it off.
 - One SQLite file: `%APPDATA%\com.tool.suoji\suoji.db` - copy it, that's your backup.
 - Closing the window hides it to the tray; reminders keep working. Quit from the tray menu.
 - Built-in help page (the `?` button), opened automatically on first launch.
@@ -104,6 +104,23 @@ Grab the latest from [Releases](https://github.com/Leecoin49/suoji/releases):
 The app itself is named 琐记 (Suoji) once installed.
 
 Requires Windows 10/11 with WebView2 (preinstalled on both).
+
+## Updates
+
+The app has an update center of its own: **Settings → Updates**, or the download
+icon in the title bar.
+
+- It checks once a day (configurable) and quietly downloads in the background.
+- A small dot on the title-bar icon means a build is ready; nothing installs
+  until you press **Restart and update**.
+- Release notes are shown in the update center; a version you do not want can be
+  skipped permanently.
+- Every release is signed with minisign, and the installed build verifies the
+  signature before running the installer — a tampered download is refused.
+
+The manifest the app reads is `latest.json` on the newest release, built by
+`.github/workflows/release.yml`. Endpoints and the public key live in
+`src-tauri/tauri.conf.json` under `plugins.updater`.
 
 ## Getting Started
 
@@ -138,6 +155,15 @@ make package      # full desktop build + NSIS installer
 Artifacts land in `src-tauri/target/release/` and
 `src-tauri/target/release/bundle/nsis/`.
 
+Signing an update requires the private key; without it the build still works but
+produces no updater artifact (`*.sig`) and no `latest.json` for CI:
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY=/path/to/updater.key   # or the key string
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=              # empty for a passwordless key
+make package
+```
+
 > [!NOTE]
 > The NSIS bundler downloads its toolchain from GitHub on first run. Behind a
 > firewall, set `HTTPS_PROXY` / `HTTP_PROXY` before `make package`.
@@ -169,7 +195,8 @@ Chinese one, so screenshots can be taken in either language.
 ```
 
 One file, standard SQLite. Copy it to back up; delete it to start over. Nothing is
-uploaded anywhere, and the app makes no network requests at runtime.
+uploaded anywhere: the only request the app makes is the update check (switched off
+in a click), and no task content is ever part of it.
 
 ## Tech Stack
 
@@ -181,6 +208,7 @@ uploaded anywhere, and the app makes no network requests at runtime.
 | State | Pinia |
 | Storage | SQLite via rusqlite (bundled) |
 | i18n | Hand-rolled `ref` + dictionaries, no runtime i18n library |
+| Updates | `tauri-plugin-updater` with minisign signatures, manifest on GitHub Releases |
 | Icons | lucide-vue-next |
 | Dates | dayjs |
 
@@ -188,11 +216,12 @@ uploaded anywhere, and the app makes no network requests at runtime.
 
 ```
 src/                    Vue frontend
-  components/           TitleBar, CaptureBar, TaskRow + close-out/history/help/settings sheets
+  components/           TitleBar, CaptureBar, TaskRow + close-out/history/help/settings/update sheets
   lib/api.ts            typed wrappers around every Tauri command
   lib/i18n.ts           every user-visible string, zh + en
   lib/parse.ts          the one-line syntax parser
   stores/day.ts         Pinia store
+  stores/update.ts      update center state: check, download, install, skip
 src-tauri/src/
   lib.rs                plugins, tray, global hotkey, autostart, command registration
   commands.rs           the entire IPC surface

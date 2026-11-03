@@ -5,3 +5,7 @@ src-tauri/gen/schemas/
 *.local
 .DS_Store
 .pi/
+# updater signing keys never belong in the repository
+.keys/
+*.key
+*.key.pub

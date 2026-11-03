@@ -117,6 +117,38 @@ Behaviour changes update three places: `README.md`, `README.zh-CN.md`, and the
 in-app help (`src/lib/i18n.ts` -> `helpContent`). The help sheet is the one users
 actually read.
 
+## Releases and update signing
+
+The app updates itself through `tauri-plugin-updater`. Two things must line up:
+
+1. **The public key** in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`).
+2. **The private key** used to sign the bundle, via `TAURI_SIGNING_PRIVATE_KEY`
+   (a path or the key string) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+Generate a keypair once - keep the private key out of the repository:
+
+```bash
+pnpm tauri signer generate -w ~/.tauri/suoji-updater.key
+```
+
+Shift the public key into `plugins.updater.pubkey` (base64 of the `.key.pub`
+contents) and store the private key as the repository secret
+`TAURI_SIGNING_PRIVATE_KEY`. Either paste the key itself, or paste a base64 copy;
+`.github/workflows/release.yml` accepts both and decodes it before the build.
+
+Pushing a `v*` tag is the whole release:
+
+```bash
+# bump the version in package.json, src-tauri/Cargo.toml and tauri.conf.json
+git commit -am "chore: bump to 0.1.2"
+git tag v0.1.2 && git push origin main v0.1.2
+```
+
+CI builds with `createUpdaterArtifacts`, renames the bundles to ASCII
+(`SuoJi_<version>_x64-setup.exe`), writes `latest.json` from the generated `.sig`,
+and uploads everything. `latest.json` is the file installed apps poll, so a
+release without it is a release nobody updates to.
+
 ## Sending a PR
 
 1. Fork, branch, keep the diff focused.

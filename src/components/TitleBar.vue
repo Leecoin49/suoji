@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { CircleHelp, History, Minus, Settings2, X } from "lucide-vue-next";
+import { CircleHelp, Download, History, Minus, Settings2, X } from "lucide-vue-next";
 import { t } from "@/lib/i18n";
+import { useUpdateStore } from "@/stores/update";
 
 const win = getCurrentWindow();
+const update = useUpdateStore();
 const emit = defineEmits<{
   (e: "settings"): void;
   (e: "history"): void;
   (e: "help"): void;
+  (e: "update"): void;
 }>();
 
 const btn =
@@ -27,6 +30,14 @@ const btn =
       </button>
       <button :class="btn" :title="t('nav.help')" @click="emit('help')">
         <CircleHelp :size="14" :stroke-width="1.8" />
+      </button>
+      <button :class="[btn, 'relative']" :title="t('nav.update')" @click="emit('update')">
+        <Download :size="14" :stroke-width="1.8" />
+        <span
+          v-if="update.badge"
+          class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+          :class="update.badge === 'ready' ? 'bg-accent' : 'bg-accent/45'"
+        />
       </button>
       <button :class="btn" :title="t('nav.settings')" @click="emit('settings')">
         <Settings2 :size="14" :stroke-width="1.8" />

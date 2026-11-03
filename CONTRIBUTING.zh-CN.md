@@ -105,6 +105,36 @@ scripts/                 图标生成，以及生成文档截图用的脚本
 用户可见的行为变化要同时更新三处：`README.md`、`README.zh-CN.md`，以及应用内帮助
 （`src/lib/i18n.ts` 里的 `helpContent`）。用户真正会看的是应用内的那份。
 
+## 发布与更新签名
+
+应用通过 `tauri-plugin-updater` 自己更新，要两件事对上：
+
+1. `src-tauri/tauri.conf.json` 里 `plugins.updater.pubkey` 的**公钥**。
+2. 打包时用于签名的**私钥**：环境变量 `TAURI_SIGNING_PRIVATE_KEY`（路径或密钥字符串）
+   与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+
+密钥对只生成一次，私钥不要进仓库：
+
+```bash
+pnpm tauri signer generate -w ~/.tauri/suoji-updater.key
+```
+
+把公钥（`.key.pub` 内容做 base64）填进 `plugins.updater.pubkey`，私钥存进仓库 secret
+`TAURI_SIGNING_PRIVATE_KEY`。直接粘密钥本身或粘一份 base64 副本都行，
+`.github/workflows/release.yml` 两种都认，会在构建前解开。
+
+推一个 `v*` tag 就是一次完整发布：
+
+```bash
+# 先在 package.json、src-tauri/Cargo.toml、tauri.conf.json 里改版本号
+git commit -am "chore: bump to 0.1.2"
+git tag v0.1.2 && git push origin main v0.1.2
+```
+
+CI 会用 `createUpdaterArtifacts` 构建，把产物改成 ASCII 名（`SuoJi_<版本>_x64-setup.exe`），
+再用生成的 `.sig` 写 `latest.json`，一并上传。`latest.json` 就是已安装的应用会去拉的那份清单，
+少它等于这次发布没人能更新。
+
 ## 提 PR
 
 1. Fork、开分支，保持 diff 聚焦。

@@ -81,7 +81,7 @@
 
 ### 天生本地
 
-- 无账号、无服务器、无遥测、不联网。
+- 无账号、无服务器、无遥测。唯一的网络请求是查更新（可在设置里关掉）。
 - 一个 SQLite 文件：`%APPDATA%\com.tool.suoji\suoji.db`——复制它就是备份。
 - 关窗口收进托盘，提醒照常；托盘菜单里可以退出。
 - 自带使用说明（标题栏 `?`），第一次启动自动打开。
@@ -96,6 +96,18 @@
 安装后应用名为「琐记」。
 
 需要 Windows 10/11（自带 WebView2）。
+
+## 更新
+
+应用自带更新中心：**设置 → 更新**，或标题栏的下载图标。
+
+- 每天检查一次（可关），发现新版本会安静地后台下载。
+- 标题栏图标上出现小圆点，表示已经下好；不点「重启并更新」就不会装。
+- 面板里能看到这版的更新说明；不想装的版本可以永久跳过。
+- 每个发布都带 minisign 签名，装之前会验签，被篡改的包会直接拒绝。
+
+应用读取的清单是最新 Release 上的 `latest.json`，由 `.github/workflows/release.yml` 生成。
+更新地址和公钥在 `src-tauri/tauri.conf.json` 的 `plugins.updater` 里。
 
 ## 本地开发
 
@@ -129,6 +141,14 @@ make package      # 完整桌面构建 + NSIS 安装包
 
 产物在 `src-tauri/target/release/` 与 `src-tauri/target/release/bundle/nsis/`。
 
+打更新包需要签名私钥；没有私钥也能构建，但不会产出 `*.sig`，CI 也生成不了 `latest.json`：
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = "D:\path\to\updater.key"   # 也可以是密钥字符串本身
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""                  # 免密密钥留空
+make package
+```
+
 > [!NOTE]
 > NSIS 打包器首次运行会从 GitHub 下载工具链。网络受限时，先设 `HTTPS_PROXY` /
 > `HTTP_PROXY` 再 `make package`。
@@ -159,7 +179,8 @@ sqlite3 "$env:APPDATA\com.tool.suoji\suoji.db" ".read scripts/demo-seed.sql"
 %APPDATA%\com.tool.suoji\suoji.db
 ```
 
-一个标准 SQLite 文件。复制它就是备份，删掉它就是重来。运行时不联网、不上传。
+一个标准 SQLite 文件。复制它就是备份，删掉它就是重来。运行时唯一会联网的地方是查更新
+（设置里可以关），任务内容不会离开这台机器。
 
 ## 技术栈
 
