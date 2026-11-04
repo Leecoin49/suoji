@@ -9,7 +9,7 @@
     <a href="https://github.com/Leecoin49/suoji/actions/workflows/ci.yml"><img src="https://github.com/Leecoin49/suoji/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="https://github.com/Leecoin49/suoji/releases"><img src="https://img.shields.io/github/v/release/Leecoin49/suoji?display_name=tag" alt="Release" /></a>
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License" />
-    <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4?logo=windows&logoColor=white" alt="Platform" />
     <img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/Vue-3-42B883?logo=vue.js&logoColor=white" alt="Vue 3" />
   </p>
@@ -88,15 +88,18 @@
 
 ## 安装
 
-从 [Releases](https://github.com/Leecoin49/suoji/releases) 下载最新版：
+去 [Releases](https://github.com/Leocoin49/suoji/releases) 下最新一版。六个平台，跟 dbx 同一套发布矩阵：
 
-- `SuoJi_<版本>_x64-setup.exe`——NSIS 安装包，装到当前用户，不需要管理员权限
-- `SuoJi_<版本>_x64-portable.exe`——免安装，双击就能用
+| 平台 | 文件 |
+| --- | --- |
+| Windows 10/11 x64 | `Suoji_<版本>_x64-setup.exe`（装到当前用户，不要管理员），`Suoji_<版本>_x64-portable.exe` |
+| Windows 10/11 arm64 | `Suoji_<版本>_arm64-setup.exe`，`Suoji_<版本>_arm64-portable.exe` |
+| macOS 10.15+ 苹果芯片 | `Suoji_<版本>_arm64.dmg` |
+| macOS 10.15+ Intel | `Suoji_<版本>_x64.dmg` |
+| Linux x64 | `Suoji_<版本>_amd64.AppImage`，`Suoji_<版本>_amd64.deb` |
+| Linux arm64 | `Suoji_<版本>_arm64.AppImage`，`Suoji_<版本>_arm64.deb` |
 
-安装后应用名为「琐记」。
-
-需要 Windows 10/11（自带 WebView2）。
-
+Windows 上装完应用名是「琐记」。Windows 自带 WebView2；Linux 版需要系统里有 `libwebkit2gtk-4.1`。
 ## 更新
 
 应用自带更新中心：**设置 → 更新**，或标题栏的下载图标。
@@ -136,10 +139,10 @@ make dev          # 或：pnpm tauri dev
 
 ```bash
 make build        # 类型检查 + 前端构建
-make package      # 完整桌面构建 + NSIS 安装包
+make package      # 完整桌面构建（当前平台的全部 bundle）
 ```
 
-产物在 `src-tauri/target/release/` 与 `src-tauri/target/release/bundle/nsis/`。
+产物在 `src-tauri/target/release/` 与 `src-tauri/target/release/bundle/<nsis|dmg|deb|appimage>/`。加 `--target` 可以构建别的平台的包，例如 `pnpm tauri build --target aarch64-apple-darwin`。
 
 打更新包需要签名私钥；没有私钥也能构建，但不会产出 `*.sig`，CI 也生成不了 `latest.json`：
 

@@ -1,8 +1,23 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue";
 import { X } from "lucide-vue-next";
 import { helpContent, t } from "@/lib/i18n";
+import { api } from "@/lib/api";
 
 const emit = defineEmits<{ (e: "close"): void }>();
+
+// Resolved at runtime: %APPDATA% on Windows, a different place on macOS/Linux.
+const dataPath = ref("");
+onMounted(() => {
+  void api
+    .dataPath()
+    .then((path) => {
+      dataPath.value = path;
+    })
+    .catch(() => {
+      dataPath.value = "";
+    });
+});
 
 const row = "flex items-start gap-3 py-2";
 const kbd = "shrink-0 rounded-md border border-line bg-paper px-1.5 py-0.5 text-[11px] text-ink-soft";
@@ -93,7 +108,7 @@ const kbd = "shrink-0 rounded-md border border-line bg-paper px-1.5 py-0.5 text-
         </h3>
         <p class="text-[12.5px] leading-6 text-ink-soft">
           {{ t("help.dataBody") }}<br />
-          {{ t("help.dataPath") }}: <span class="text-ink-faint">%APPDATA%\com.tool.suoji\suoji.db</span>
+          {{ t("help.dataPath") }}: <span class="text-ink-faint">{{ dataPath || "suoji.db" }}</span>
           <span class="ml-1">{{ t("help.dataBackup") }}</span><br />
           {{ t("help.dataTray") }}
         </p>

@@ -131,9 +131,10 @@ git commit -am "chore: bump to 0.1.2"
 git tag v0.1.2 && git push origin main v0.1.2
 ```
 
-CI 会用 `createUpdaterArtifacts` 构建，把产物改成 ASCII 名（`SuoJi_<版本>_x64-setup.exe`），
-再用生成的 `.sig` 写 `latest.json`，一并上传。`latest.json` 就是已安装的应用会去拉的那份清单，
-少它等于这次发布没人能更新。
+CI 会同时构建六个平台——Windows x64/arm64、macOS Intel/苹果芯片、Linux x64/arm64（跟 dbx 同一套矩阵）。
+每条腿都带 `createUpdaterArtifacts`，.github/scripts/collect-assets.mjs 负责把产物改成 ASCII 名
+（`Suoji_<版本>_<架构>-setup.exe`、`-portable.exe`、`.dmg`、`.AppImage`、`.deb`）并记下签名；
+publish 作业把这些记录合成 `latest.json`——它就是已安装的应用会去拉的那份清单，少它等于这次发布没人能更新。
 
 打 tag 之前，先在新文件 `release-notes/<版本>.md` 里写这版改了什么。它同时是 GitHub release
 正文和应用内更新面板里显示的文案——先英文，一行 `---`，再中文。

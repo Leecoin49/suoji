@@ -54,4 +54,5 @@ export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
   setLocale: (locale: string) => invoke<Settings>("set_locale", { locale }),
+  dataPath: () => invoke<string>("data_path"),
 };

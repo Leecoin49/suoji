@@ -326,6 +326,12 @@ pub fn show_main(app: &tauri::AppHandle) {
     }
 }
 
+/// Absolute path of the database file, shown in the help page.
+#[tauri::command]
+pub fn data_path(app: tauri::AppHandle) -> String {
+    app.path().app_data_dir().map(|dir| dir.join("suoji.db").to_string_lossy().to_string()).unwrap_or_default()
+}
+
 /// Count today's open tasks (kept for completeness).
 #[allow(dead_code)]
 pub fn count_today(conn: &Connection) -> rusqlite::Result<i64> {

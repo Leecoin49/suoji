@@ -9,7 +9,7 @@
     <a href="https://github.com/Leecoin49/suoji/actions/workflows/ci.yml"><img src="https://github.com/Leecoin49/suoji/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="https://github.com/Leecoin49/suoji/releases"><img src="https://img.shields.io/github/v/release/Leecoin49/suoji?display_name=tag" alt="Release" /></a>
     <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License" />
-    <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4?logo=windows&logoColor=white" alt="Platform" />
     <img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2" />
     <img src="https://img.shields.io/badge/Vue-3-42B883?logo=vue.js&logoColor=white" alt="Vue 3" />
   </p>
@@ -96,15 +96,20 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
 
 ## Install
 
-Grab the latest from [Releases](https://github.com/Leecoin49/suoji/releases):
+Grab the latest from [Releases](https://github.com/Leecoin49/suoji/releases). Six
+builds, the same platform matrix as dbx:
 
-- `SuoJi_<version>_x64-setup.exe` - NSIS installer, installs for the current user, no admin rights
-- `SuoJi_<version>_x64-portable.exe` - portable, just run it
+| Platform | Files |
+| --- | --- |
+| Windows 10/11 x64 | `Suoji_<version>_x64-setup.exe` (per-user, no admin), `Suoji_<version>_x64-portable.exe` |
+| Windows 10/11 arm64 | `Suoji_<version>_arm64-setup.exe`, `Suoji_<version>_arm64-portable.exe` |
+| macOS 10.15+ Apple Silicon | `Suoji_<version>_arm64.dmg` |
+| macOS 10.15+ Intel | `Suoji_<version>_x64.dmg` |
+| Linux x64 | `Suoji_<version>_amd64.AppImage`, `Suoji_<version>_amd64.deb` |
+| Linux arm64 | `Suoji_<version>_arm64.AppImage`, `Suoji_<version>_arm64.deb` |
 
-The app itself is named 琐记 (Suoji) once installed.
-
-Requires Windows 10/11 with WebView2 (preinstalled on both).
-
+On Windows the app installs as 琐记 (Suoji). WebView2 ships with Windows 10/11; the
+Linux builds need `libwebkit2gtk-4.1` from the distribution.
 ## Updates
 
 The app has an update center of its own: **Settings → Updates**, or the download
@@ -153,7 +158,8 @@ make package      # full desktop build + NSIS installer
 ```
 
 Artifacts land in `src-tauri/target/release/` and
-`src-tauri/target/release/bundle/nsis/`.
+`src-tauri/target/release/bundle/<nsis|dmg|deb|appimage>/`. Pass a target to
+build the bundles of another platform: `pnpm tauri build --target aarch64-apple-darwin`.
 
 Signing an update requires the private key; without it the build still works but
 produces no updater artifact (`*.sig`) and no `latest.json` for CI:

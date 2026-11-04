@@ -144,10 +144,13 @@ git commit -am "chore: bump to 0.1.2"
 git tag v0.1.2 && git push origin main v0.1.2
 ```
 
-CI builds with `createUpdaterArtifacts`, renames the bundles to ASCII
-(`SuoJi_<version>_x64-setup.exe`), writes `latest.json` from the generated `.sig`,
-and uploads everything. `latest.json` is the file installed apps poll, so a
-release without it is a release nobody updates to.
+CI builds six legs - Windows x64/arm64, macOS Intel/Apple Silicon, Linux x64/arm64
+(the same matrix dbx ships). Each leg runs `tauri build` with
+`createUpdaterArtifacts`, then `.github/scripts/collect-assets.mjs` renames its
+bundles to ASCII (`Suoji_<version>_<arch>-setup.exe`, `-portable.exe`, `.dmg`,
+`.AppImage`, `.deb`) and records the signature. The publish job merges those
+records into `latest.json`, the file installed apps poll - a release without it is
+a release nobody updates to.
 
 Write what changed in `release-notes/<version>.md` before tagging. That file
 becomes both the GitHub release body and the text the in-app update panel shows -
