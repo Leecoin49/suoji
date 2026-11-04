@@ -14,7 +14,7 @@ help:
 	@printf '  %-18s %s\n' 'make dev' 'Start the Tauri desktop dev environment (HMR)'
 	@printf '  %-18s %s\n' 'make dev-web' 'Start only the Vite dev server'
 	@printf '  %-18s %s\n' 'make build' 'Type-check the frontend and build it'
-	@printf '  %-18s %s\n' 'make package' 'Build the desktop app and NSIS installer'
+	@printf '  %-18s %s\n' 'make package' 'Build the desktop app and its bundles for this platform'
 	@printf '  %-18s %s\n' 'make clean' 'Remove Rust build artifacts'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Checks:'

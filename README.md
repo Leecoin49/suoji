@@ -154,7 +154,7 @@ to run both side by side (each identifier gets its own database).
 
 ```bash
 make build        # type-check + frontend build
-make package      # full desktop build + NSIS installer
+make package      # full desktop build (every bundle for this platform)
 ```
 
 Artifacts land in `src-tauri/target/release/` and
