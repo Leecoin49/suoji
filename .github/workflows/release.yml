@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*"
+    # Building this branch runs every platform leg without publishing anything.
+    branches:
+      - ci/release-dryrun
   workflow_dispatch:
     inputs:
       tag:
@@ -20,7 +23,7 @@ permissions:
   contents: write
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  RELEASE_TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'v0.0.0-dryrun') }}
 
 jobs:
   build:
@@ -144,7 +147,7 @@ jobs:
   publish:
     name: publish release
     needs: build
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && github.ref != 'refs/heads/ci/release-dryrun' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
