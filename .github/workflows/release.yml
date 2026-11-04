@@ -112,17 +112,22 @@ jobs:
           fi
 
       - name: Build
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
-          if [ "$SIGNED" = "1" ]; then
-            pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-          else
-            pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} \
-              --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          extra=""
+          if [ "$SIGNED" != "1" ]; then
+            # A file, because PowerShell would strip the quotes of inline JSON.
+            printf '{"bundle":{"createUpdaterArtifacts":false}}' > unsigned.conf.json
+            extra="--config unsigned.conf.json"
           fi
+          pnpm tauri build \
+            --target "${{ matrix.target }}" \
+            --bundles "${{ matrix.bundles }}" \
+            $extra
 
       - name: Collect release assets
         shell: bash

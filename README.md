@@ -174,6 +174,11 @@ make package
 > The NSIS bundler downloads its toolchain from GitHub on first run. Behind a
 > firewall, set `HTTPS_PROXY` / `HTTP_PROXY` before `make package`.
 
+> [!NOTE]
+> On Windows only the NSIS installer is built (`src-tauri/tauri.windows.conf.json`).
+> The MSI/WiX bundler cannot encode the CJK product name `琐记`, and the item is
+> the same app either way. macOS and Linux keep building every bundle.
+
 ### Checks
 
 ```bash

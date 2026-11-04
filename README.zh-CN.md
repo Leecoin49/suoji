@@ -156,6 +156,10 @@ make package
 > NSIS 打包器首次运行会从 GitHub 下载工具链。网络受限时，先设 `HTTPS_PROXY` /
 > `HTTP_PROXY` 再 `make package`。
 
+> [!NOTE]
+> Windows 上只打 NSIS 安装包（`src-tauri/tauri.windows.conf.json`）。MSI/WiX
+> 无法编码中文产品名「琐记」，两者装出来是同一个应用。macOS 与 Linux 仍然构建全部 bundle。
+
 ### 检查
 
 ```bash

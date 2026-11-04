@@ -9,3 +9,4 @@ src-tauri/gen/schemas/
 .keys/
 *.key
 *.key.pub
+unsigned.conf.json
