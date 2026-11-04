@@ -21,6 +21,7 @@ const target = arg("target");
 const platform = arg("platform");
 const arch = arg("arch");
 const out = arg("out", "dist");
+const unsigned = process.argv.includes("--unsigned");
 
 if (!version || !target || !platform || !arch) {
   console.error("usage: collect-assets.mjs --version <v> --target <triple> --platform <key> --arch <label> --out <dir>");
@@ -76,6 +77,7 @@ for (const file of files) {
   // Windows installs the .exe, macOS the .app.tar.gz, Linux the .AppImage.
   const isUpdater = name.endsWith("-setup.exe") || name.endsWith(".app.tar.gz") || name.endsWith(".AppImage");
   if (isUpdater) {
+    if (unsigned) continue;
     updaterAsset = name;
     const sig = `${file}.sig`;
     try {
@@ -92,7 +94,7 @@ for (const file of files) {
   }
 }
 
-if (!updaterAsset) {
+if (!updaterAsset && !unsigned) {
   console.error(`no updater artifact found for ${platform} under ${bundleRoot}`);
   process.exit(1);
 }

@@ -7,9 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build and publish"
+        description: "Tag to build (its version names the assets)"
         required: true
         type: string
+      dry_run:
+        description: "Build all platforms but do not publish a release"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -58,6 +63,8 @@ jobs:
             bundles: nsis
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install Linux dependencies
         if: startsWith(matrix.platform, 'ubuntu')
@@ -90,29 +97,43 @@ jobs:
           workspaces: "./src-tauri -> target"
           key: ${{ matrix.target }}
 
-      - name: Require the updater signing key
+      - name: Check for the updater signing key
+        id: signing
         shell: bash
         run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set; createUpdaterArtifacts needs it."
-            exit 1
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "signed=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=0" >> "$GITHUB_OUTPUT"
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is empty; building without updater artifacts."
           fi
 
       - name: Build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          if [ "$SIGNED" = "1" ]; then
+            pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          else
+            pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} \
+              --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          fi
 
       - name: Collect release assets
         shell: bash
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
+          args=""
+          if [ "$SIGNED" != "1" ]; then args="--unsigned"; fi
           node .github/scripts/collect-assets.mjs \
             --version "${RELEASE_TAG#v}" \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.key }}" \
             --arch "${{ matrix.arch }}" \
-            --out dist
+            --out dist $args
 
       - uses: actions/upload-artifact@v4
         with:
@@ -123,9 +144,12 @@ jobs:
   publish:
     name: publish release
     needs: build
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/download-artifact@v4
         with:
