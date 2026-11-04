@@ -27,6 +27,15 @@ function write(key: string, value: string) {
   }
 }
 
+/** No release has uploaded latest.json yet - that is not something the user can fix. */
+function isMissingManifest(raw: string) {
+  return /valid release JSON|404|not found/i.test(raw);
+}
+
+function isOffline(raw: string) {
+  return /error sending request|dns|connect|network|timed out|failed to fetch/i.test(raw);
+}
+
 export const useUpdateStore = defineStore("update", () => {
   const currentVersion = ref("");
   const phase = ref<Phase>("idle");
@@ -38,6 +47,8 @@ export const useUpdateStore = defineStore("update", () => {
   const error = ref("");
   const ignoredVersion = ref("");
   const autoCheck = ref(true);
+  /** Translation key for errors worth explaining in the panel; raw text lives in `error`. */
+  const noticeKey = ref<"" | "update.noManifest" | "update.offline">("");
 
   // The plugin keeps the downloaded bytes in memory, so the handle has to live here.
   let pending: Update | null = null;
@@ -75,6 +86,7 @@ export const useUpdateStore = defineStore("update", () => {
     downloaded.value = 0;
     total.value = 0;
     error.value = "";
+    noticeKey.value = "";
   }
 
   async function init() {
@@ -104,8 +116,18 @@ export const useUpdateStore = defineStore("update", () => {
       // Quietly fetch it so "restart and update" is instant when the user asks for it.
       void download();
     } catch (e) {
+      const raw = String(e);
+      remember();
+      // An unreleased manifest is a normal state for a young project: say so instead of
+      // showing the plugin's "Could not fetch a valid release JSON from the remote".
+      if (isMissingManifest(raw)) {
+        phase.value = "latest";
+        noticeKey.value = "update.noManifest";
+        return;
+      }
       phase.value = "error";
-      error.value = String(e);
+      error.value = raw;
+      noticeKey.value = isOffline(raw) ? "update.offline" : "";
       if (!silent) remember();
     }
   }
@@ -168,6 +190,7 @@ export const useUpdateStore = defineStore("update", () => {
     total,
     progress,
     error,
+    noticeKey,
     badge,
     busy,
     autoCheck,

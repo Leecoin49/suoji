@@ -12,8 +12,7 @@ const showRelease = computed(() =>
   ["available", "downloading", "ready", "error"].includes(update.phase) && !!update.version
 );
 
-const statusHint = computed(() => {
-  switch (update.phase) {
+const statusHint = computed(() => {  switch (update.phase) {
     case "checking":
       return t("update.checking");
     case "latest":
@@ -80,6 +79,9 @@ const secondary =
             <p class="text-[13px] text-ink">{{ statusHint }}</p>
             <p class="mt-0.5 text-[11.5px] text-ink-faint">
               {{ t("update.current", { v: update.currentVersion || "—" }) }}
+            </p>
+            <p v-if="update.noticeKey" class="mt-1 text-[11.5px] text-ink-faint/90">
+              {{ t(update.noticeKey) }}
             </p>
           </div>
           <button
