@@ -122,6 +122,8 @@ icon in the title bar.
   skipped permanently.
 - Every release is signed with minisign, and the installed build verifies the
   signature before running the installer — a tampered download is refused.
+- On Linux only the AppImage build updates itself; a `.deb` install updates
+  through the package manager.
 
 The manifest the app reads is `latest.json` on the newest release, built by
 `.github/workflows/release.yml`. Endpoints and the public key live in

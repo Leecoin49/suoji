@@ -71,8 +71,13 @@ if (files.length === 0) {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
+// The plugin can only replace a Windows installer, a macOS app bundle or a Linux
+// AppImage: a .deb or .dmg is installed by the package manager and is never the
+// payload, even when the CLI signed it.
+const PAYLOAD_PRIORITY = [".AppImage.tar.gz", ".AppImage", ".app.tar.gz", ".nsis.zip", ".exe"];
+
 const shipped = [];
-let updaterAsset = "";
+const signed = [];
 
 for (const file of files) {
   const name = assetName(file);
@@ -82,19 +87,25 @@ for (const file of files) {
 
   const sig = `${file}.sig`;
   if (!existsSync(sig)) continue;
-
-  updaterAsset = name;
-  const signature = readFileSync(sig, "utf8").trim();
   cpSync(sig, join(out, `${name}.sig`));
-  writeFileSync(
-    join(out, `meta-${platform}.json`),
-    JSON.stringify({ platform, asset: name, signature }, null, 2)
-  );
+  signed.push({ file, name, signature: readFileSync(sig, "utf8").trim() });
 }
 
-if (!unsigned && !updaterAsset) {
+const payload = signed
+  .map((entry) => ({ entry, rank: PAYLOAD_PRIORITY.findIndex((ext) => entry.file.endsWith(ext)) }))
+  .filter((candidate) => candidate.rank !== -1)
+  .sort((a, b) => a.rank - b.rank)[0]?.entry;
+
+if (!unsigned && !payload) {
   console.error(`nothing was signed for ${platform} under ${bundleRoot}`);
   process.exit(1);
+}
+
+if (payload) {
+  writeFileSync(
+    join(out, `meta-${platform}.json`),
+    JSON.stringify({ platform, asset: payload.name, signature: payload.signature }, null, 2)
+  );
 }
 
 // Windows also ships the bare executable: copy it next to the installer.
@@ -106,4 +117,4 @@ if (platform.startsWith("windows")) {
 }
 
 console.log(`${platform}: ${shipped.join(", ")}`);
-console.log(`${platform}: updater payload = ${updaterAsset || "(none)"}`);
+console.log(`${platform}: updater payload = ${payload?.name || "(none)"}`);

@@ -108,6 +108,7 @@ Windows 上装完应用名是「琐记」。Windows 自带 WebView2；Linux 版�
 - 标题栏图标上出现小圆点，表示已经下好；不点「重启并更新」就不会装。
 - 面板里能看到这版的更新说明；不想装的版本可以永久跳过。
 - 每个发布都带 minisign 签名，装之前会验签，被篡改的包会直接拒绝。
+- Linux 只有 AppImage 版能自更新，`.deb` 装的需要走包管理器。
 
 应用读取的清单是最新 Release 上的 `latest.json`，由 `.github/workflows/release.yml` 生成。
 更新地址和公钥在 `src-tauri/tauri.conf.json` 的 `plugins.updater` 里。
