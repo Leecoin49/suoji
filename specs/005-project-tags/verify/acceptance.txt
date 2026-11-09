@@ -1,0 +1,39 @@
+005 验收记录（2026-11-09）
+
+自动化已覆盖（证据文件）：
+- 分类口径：verify/class-report.txt — OK (0 failure(s), 11 assertion(s))
+  · 项目维度行数 = 项目数 + 未分类（未分类恒存在且垫底）
+  · 项目维度计数和 = 明细条数；每组下钻条数 = 该行 count
+  · 项目维度占比和 = 1（±1e-9），无 NaN/Infinity
+  · 标签维度多标签各记一次（t1×3 + t2×2 = 5），且不产生「无标签」行
+  · 归档项目仍计入；排序 count 降序
+  · 未知项目 id（老数据/手改库）并入「未分类」，占比和仍为 1、下钻条数仍对得上
+  · 未知标签 id 不参与计数（不造幽灵标签行）
+- 迁移：verify/db-before.txt（迁移前 3 表 9/8/0 行、user_version=0、无 schema_version）
+  + verify/after_check.py（迁移后 schema_version=2、tasks 仍 15+1 列且 project_id 在末尾、三表行数不变）
+- 门禁：pnpm exec vue-tsc --noEmit 干净；pnpm build 1618 模块 / JS 254.80 kB / CSS 34.67 kB（cis 33.01 → +1.66 kB）
+  cargo fmt --check 干净；cargo clippy --all-targets -D warnings 干净；gate.ps1 PASS 10；check-i18n.ps1 PASS zh=248 en=248
+
+逐条状态：
+- SC-001 归类入口一次点击：已实现（任务行 hover「归类」按钮 + 直接点筹码），待人工点击确认手感。
+- SC-002 芯片式展示：已实现（项目一枚 + 标签最多 3 枚 + 「+N」），待人工确认视觉。
+- SC-003 校验：PROJECT_NAME_MAX=20 / TAG_NAME_MAX=16 / TAGS_PER_TASK=10，空名、超长、重名三条均在保存前拦截并有提示。
+- SC-004 即时而变：saveProject/setTaskProject/setTaskTags 返回后 store 立即刷新（save 返回 Task/Project），无需重开面板。
+- SC-005 按类计数正确：见 class-report.txt（计数、占比、下钻一致）。
+- SC-006 未分类/无标签处理：项目维度恒有「未分类」行；标签维度不造「无标签」行（避免重复计数歧义）。
+- SC-007 区间联动：分类卡由 view.done 计算，切预设/自定义/本月季年都重算；classFilter 与时间筛选叠加。
+- SC-008 离线：无网络请求，无新依赖（pnpm-lock.yaml 与 Cargo.toml 无改动）。
+- SC-009 迁移安全：单事务 + 迁移前自动复制 suoji.db.pre-005 + PRAGMA table_info 存在性判断；重复运行幂等（第二次启动无 DDL 变更、行数不变）。
+- SC-010 双语：新增 key 全部成对（gate C008 248/248）；help 段落 zh/en 同步。
+- SC-011 文档：README.md / README.zh-CN.md / 应用内帮助三处已同步「项目、标签与进度」一节。
+
+待人工：SC-001、SC-002 的视觉与手感；以及首次打开时真实库的迁移结果（由 after_check.py 记录）。
+
+## 实跑记录（2026-11-09 17:00–17:20，pnpm tauri dev + 真库）
+- 真库迁移后自检全绿（after_check.py）：schema_version=2、tasks 16 列且 project_id 在末、行数 9/9/0 不变、6 个新索引齐。
+- 界面实测（截图见 verify/screens/）：project-sheet-empty.png 空项目态、project-flow.png 三步链路（定选题✓ / 列提纲「当前」/ 写初稿，1/3 步）、stats-by-project.png 按项目 8/4/2（57%/29%/14%）。
+- 实测发现并修掉的三处问题：
+  1. 指标卡「环比上一段」的补充句把 prev.days（天数）塞进「做了 {n} 件」模板 → 改用 compare.prevTotal，无上段时用新键 stats.compareNoBase。
+  2. 按项目/标签卡只显示一行：classRowsOf 把「未知项目 id」直接 continue 丢掉，且 StatsSheet 只用缓存分类数据 → 未知 id 并入未分类（占比和仍为 1），面板打开时 store.loadClasses(true) 强制刷新。
+  3. TaskRow chips、ClassSheet、ProjectSheet 的真机点击全部走通（含新建项目、新建节点、勾选节点）。
+- class_check.mjs 补了 3 条防回归断言（未知 id 并入未分类 / 下钻含幽灵项目 / 未知标签不计数），现 14 条全过。

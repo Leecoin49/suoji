@@ -1,0 +1,24 @@
+﻿003-stats-clarity / T027 闸门与双语检查
+记录时间：2026-11-09 09:13:40
+（任务勾选后复跑：27/29 完成，T014 / T029 为人工验收）
+
+## gate.ps1
+
+Suoji SDD gate — specs\003-stats-clarity
+----------------------------------------------------------------
+  PASS  C001  宪法已填写  — v1.0.0
+  PASS  C002  spec.md 存在  — 003-stats-clarity
+  PASS  C003  spec 四段齐全  — 兼容边界 / 数据影响 / 双语影响 / 不可破坏的不变量
+  PASS  C004  无模板占位符
+  PASS  C005  FR/SC 可验收  — FR=16 SC=11 US=3
+  PASS  C006  待澄清 ≤ 3  — 未决 0 条
+  PASS  C007  tasks 四类任务  — 契约/门禁/双语/数据 齐；进度 27/29
+  PASS  C009  需求清单已评审  — 16/16
+  PASS  C010  plan 宪法检查  — 10 条带证据
+  PASS  C008  双语键成对  — dict zh=189 en=189 键与占位符成对；content: steps=4 rows=10 why=4
+----------------------------------------------------------------
+  PASS 10   FAIL 0   SKIP 0
+  闸门通过。
+
+## check-i18n.ps1
+PASS dict zh=189 en=189 键与占位符成对；content: steps=4 rows=10 why=4

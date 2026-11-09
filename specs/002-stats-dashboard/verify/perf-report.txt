@@ -1,0 +1,53 @@
+# SC-005 性能实测（T032）
+
+日期：2026-11-06　机器：本地 Windows　数据：10 000 条任务（7 000 条已完成 + 3 000 条未完成且带推后记录）
+
+## 怎么测的（以及没测什么）
+
+SC-005 写的是「切换区间到**画面稳定**」的耗时。真机窗口的合成/绘制开销命令行里测不到，所以这里把这一过程拆成可复现的两段分别计时，取两者之和作为**乐观下界**：
+
+1. **数据段**：`specs/002-stats-dashboard/verify/perf_check.py` —— 在 10 000 行 fixture 上原样执行 `get_stats` 的五条 SELECT（明细 / `prevDone` / 推后榜 / `backlog` / `undated`），每档重复 5 次取中位数。
+2. **聚合段**：`specs/002-stats-dashboard/verify/perf_agg.mjs` —— 把 10 000 条 `DoneEntry` 喂给 `src/lib/stats.ts` 的 `toView()`（含 `bucketize` / `streakOf` / `compareOf`），同样 5 次取中位数。
+
+没测的：Vue 渲染与浏览器绘制、IPC 序列化、冷启动首次打开。这三项要靠 `quickstart.md` §SC-005 的真机计时补齐（与 T031 一起做）。
+
+## 数据段（SQL）
+
+```text
+区间                      span     中位数     min / max      明细行  prevDone  rolled  backlog  undated
+365 天（2024-11-01..2025-10-31）  365   6.0 ms    5.6 / 7.0     2338    2337      5      3000     0
+3 年（2023-01-01..2025-12-31）   1096  14.3 ms   13.6 / 16.3    7000       0      5      3000     0
+30 天（2025-10-02..2025-10-31）    30   1.5 ms    1.4 / 1.6      191     193      5      3000     0
+```
+
+最差中位数 **14.3 ms**（阈值：365 天内 500 ms、>365 天 800 ms）。
+
+## 聚合段（`toView`）
+
+```text
+区间                      span     中位数     桶数    Σ桶   doneTotal  average  streak
+365 天（按周聚合）          365    8.3 ms      53    3340     3340      9.2      365
+3 年（按月聚合）           1096   15.7 ms      36   10000    10000      9.1     1035
+30 天（按天聚合）            30    0.8 ms      30     275      275      9.2       30
+```
+
+最差中位数 **15.7 ms**；三档的 `Σ桶 == doneTotal` 全部成立（脚本内断言，不成立直接抛错）。
+
+## 结论
+
+- 数据段 + 聚合段最差合计约 **30 ms**，离 SC-005 的 500 ms / 800 ms 阈值有 16–26 倍余量；SC-005 在本机不太可能因数据量而失败，瓶颈若出现只会在渲染层。
+- 顺带确认了 FR-008 的上限约束：3 年区间的 `streak = 1035 ≤ 1096 = span.days`。
+- `streak = 365`（365 天档）说明有连续完成时不会因为区间边界被误截断。
+
+## 复现
+
+```powershell
+# 数据段（会重建 verify/fixture-perf.db，约 3 秒）
+python specs/002-stats-dashboard/verify/perf_check.py
+
+# 聚合段（先把 stats.ts 编成 JS，方法见 verify/lib_check.mjs 头部注释）
+$env:STATS_BUNDLE = ".pi/tmp/statsbuild/stats.js"
+node specs/002-stats-dashboard/verify/perf_agg.mjs
+```
+
+`verify/fixture-perf.db` 只是中间产物，随时可删。

@@ -1,0 +1,36 @@
+005 迁移与幂等校验（T002 / T023 前半）
+生成时间：2026-11-09 17:22
+机器：Windows，库 `%APPDATA%\com.tool.suoji\suoji.db`
+
+## 1. 迁移前（verify/db-before.txt，备份 suoji.db.bak-005）
+- 表：tasks / meta / day_notes
+- 行数：tasks 9 / meta 8 / day_notes 0
+- tasks 列：15（无 project_id）
+- `PRAGMA user_version` = 0；`meta` 里没有 `schema_version`
+- SHA256 = 994939bbafb94df759eaaf873005b78810dc582a93b9c019a668e52c489fd06b（36864 B）
+
+## 2. 第一次启动（迁移执行）
+- `meta.schema_version` = 2
+- 新表：projects / tags / task_tags / nodes
+- 新索引：ux_projects_name（lower(trim(name)) 唯一）/ ux_tags_name / idx_task_tags_tag / idx_nodes_project
+- tasks 16 列，`project_id` 追加在**末尾**，原 15 列列名与顺序不变
+- 行数不变：tasks 9 / meta 8（+1 行 schema_version）/ day_notes 0
+- `PRAGMA integrity_check` = ok；库 86016 B
+
+## 3. 第二次启动（幂等验证，重启前后各记一次）
+run1（重启前，PID 34516 运行中）：
+  tasks 26 / nodes 3 / projects 3 / tags 4 / schema_version 2
+run2（强杀重启后，PID 1184 运行中）：
+  tasks 26 / nodes 3 / projects 3 / tags 4 / schema_version 2
+
+（26 与 9 的差额是验收时新建的 3 条任务 + 14 条标了「演示数据」的记录 + 归档行，全部由用户动作产生，与迁移无关。）
+
+## 4. 幂等机制（src-tauri/src/db.rs）
+- `migrate()` 先比较 `meta.schema_version`，只跑缺的迁移（`MIGRATIONS[i]` 对应版本 i+1）
+- 整个迁移在 `BEGIN IMMEDIATE … COMMIT` 里，失败 `ROLLBACK`
+- `tasks.project_id` 用 `has_column()`（`PRAGMA table_info`）判定，已存在则跳过 ALTER
+- 迁移前自动复制 `suoji.db.pre-005`（同一目录，只覆盖旧的那份）
+
+## 结论
+08/09 两次启动的 DDL 均只执行一次，列结构与行数稳定，无重复加列、无重复建表 —— 幂等成立。
+回滚方式：关掉应用，把 `suoji.db.bak-005` 覆盖回 `suoji.db`（schema_version 与 DDL 一并回退，老版本代码可直接打开）。

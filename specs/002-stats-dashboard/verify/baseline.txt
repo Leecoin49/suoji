@@ -1,0 +1,55 @@
+# 只读性基线（T002 / T003）
+
+SC-009 的前后对比基准。任何一次验收完成后重跑同样的两条命令，逐项比对。
+
+- 采集时间：2026-11-06
+- 数据库：`%APPDATA%\com.tool.suoji\suoji.db`
+- 采集方式：`sqlite3.connect('file:<db>?mode=ro', uri=True)`（只读连接，连 WAL 都不写）
+
+## 1. 业务数据快照
+
+```text
+tasks        = 9
+done=1       = 0
+undated      = 0
+day_notes    = 0
+meta         = [('autostart', '1'),
+                ('closed_out_date', '2026-11-03'),
+                ('evening_time', '17:25'),
+                ('hotkey', 'Ctrl+Alt+Space'),
+                ('last_evening', '2026-11-03'),
+                ('last_morning', '2026-11-05'),
+                ('last_rollover', '2026-11-05'),
+                ('morning_time', '09:00')]
+```
+
+注意：真实库当前已有 **0 条**完成记录、`meta` 里 **没有** `locale` 键，所以 SC-002 / SC-003 / SC-006 必须在 fixture 库（`verify/fixture.db`）上跑，真实库只用于 SC-009 的前后一致性。
+
+## 2. 文件哈希
+
+```text
+SHA256(suoji.db) = FA937D75F35D945EEB75F1D7270706EB26605E0FDDDCC8978C9B29A5F843FB85
+```
+
+## 3. DDL diff（T003）
+
+```text
+DDL diff = 0
+```
+
+依据：本 feature 不改 `src-tauri/src/db.rs`（`git diff --stat -- src-tauri/src/db.rs` 为空），表仍为 `tasks` / `meta` / `day_notes` 三张，索引仍为 `idx_tasks_day` / `idx_tasks_done`。`get_stats` 只读既有列（`done` / `deleted` / `done_at` / `roll_count` / `last_rolled_at` / `created_at` / `id` / `title` / `note`），不新增列、不新增索引。
+
+## 4. 实现完成后的对比（T027 / SC-009）
+
+```text
+采集时间        = 2026-11-06（实现完成、闸门全绿之后）
+tasks           = 9            （基线 9     → 一致）
+done=1          = 0            （基线 0     → 一致）
+undated         = 0            （基线 0     → 一致）
+day_notes       = 0            （基线 0     → 一致）
+meta            = 8 项，键值逐项与基线相同（无新增 locale 键）
+SHA256(suoji.db) = FA937D75F35D945EEB75F1D7270706EB26605E0FDDDCC8978C9B29A5F843FB85  （与基线逐字符相同）
+```
+
+佐证：`verify/sc009-readonly.txt`（命令体 0 条写语句、只读连接下五条语句可执行、前端无写调用）。
+注意：**没有启动过应用**，所以这次对比只能证明「实现与构建过程没有写库」；「打开面板前后库不变」需要在人工验收（T018）时按 `quickstart.md` §SC-009 再跑一次。

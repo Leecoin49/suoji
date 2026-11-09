@@ -1,0 +1,12 @@
+﻿003-stats-clarity / T022 只读性扫描
+扫描时间：2026-11-09 09:09:27
+文件：src/components/StatsSheet.vue（25331 字符）
+
+## 禁止关键字
+0 命中（写命令 / 存储 / 直接 invoke）
+
+## 实际调用的 api.* 方法
+api.getStats
+
+## 结论
+PASS：只有 api.getStats，无任何写入或本地存储

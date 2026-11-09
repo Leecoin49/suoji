@@ -1,0 +1,20 @@
+005 门禁记录（T021）
+生成时间：2026-11-09 17:23
+
+pnpm exec vue-tsc --noEmit                        → 干净（0 error）
+pnpm build                                        → 1618 模块；JS 254.80 kB / CSS 34.67 kB
+cargo fmt --manifest-path src-tauri/Cargo.toml --check → 无差异
+cargo clippy --all-targets -- -D warnings         → Finished（0 warning，0 error）
+scripts/speckit/gate.ps1                          → PASS 10  FAIL 0  SKIP 0（闸门通过）
+scripts/speckit/check-i18n.ps1                    → PASS dict zh=250 en=250；content steps=4 rows=10 why=4
+依赖三件                                        → git diff pnpm-lock.yaml / Cargo.toml / Cargo.lock 均为空
+capabilities/default.json                         → 未改动（15 项不变）
+
+体积对照：
+  004 之后：JS 226.99 kB / CSS 33.01 kB
+  005+006 之后：JS 254.80 kB / CSS 34.67 kB（+27.81 kB / +1.66 kB）
+  新增全部为业务代码：ClassSheet / ProjectSheet / classes.ts / 11 条 IPC 的类型与调用封装。
+
+说明：
+  · cargo 的 `Finished` 走 stderr，PowerShell 会把它包成 NativeCommandError 显示，
+    这是 PowerShell 的行为，不是构建失败；以最后一行 `Finished ... in X.XXs` 为准。

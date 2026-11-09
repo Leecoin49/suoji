@@ -1,0 +1,40 @@
+# SC-009 / NFR-002 只读证据（spec 002 复盘面板）
+
+日期：2026-11-06
+对象：`src-tauri/src/commands.rs::get_stats`、`src/components/StatsSheet.vue`
+
+## 1. 命令体内没有任何写语句
+
+对 `get_stats` 函数体（从 `pub fn get_stats` 到下一个 `pub fn set_done` 之间）做关键词计数：
+
+```
+write keywords in get_stats body: 0      # INSERT / UPDATE / DELETE / BEGIN / COMMIT
+execute_batch/execute in body: 0         # 没有任何 execute* 调用，只有 5 条 prepare/query
+```
+
+5 条语句全部是 `SELECT`（逐条见 `contract-freeze.md` 与 spec 数据影响段）。
+
+## 2. 真实数据库哈希未变
+
+```
+%APPDATA%\com.tool.suoji\suoji.db
+before SHA256 = FA937D75F35D945EEB75F1D7270706EB26605E0FDDDCC8978C9B29A5F843FB85
+after  SHA256 = FA937D75F35D945EEB75F1D7270706EB26605E0FDDDCC8978C9B29A5F843FB85
+hash equal: True
+```
+
+与 `baseline.txt` 记录的哈希一致（本次实现期间没有启动过应用，也没有跑任何写操作）。
+
+## 3. 同一批语句在只读连接下可执行
+
+`fixture_check.py` 的五条语句与命令体逐字符相同；SQLite 的 `mode=ro` 连接下可正常跑完 6 组用例
+（见 `fixture-report.txt`：OK, 0 failure）。若其中混入写语句，只读连接会直接报 `attempt to write a readonly database`。
+
+## 4. 前端不写
+
+`StatsSheet.vue` 只调用 `api.getStats()`（只读命令）；不 import store、不调用任何 `setDone`/`setNote`/
+`dropTask`/`pushToTomorrow`/`moveToDate`/`closeOut`，不写 `localStorage` 里的区间（spec FR-002：不记住上次选择）。
+
+## 结论
+
+SC-009（打开复盘面板后数据库内容不变）成立：命令只读 + 真实库哈希不变 + 只读连接可执行 + 前端无写调用。

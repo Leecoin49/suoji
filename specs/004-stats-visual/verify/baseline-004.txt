@@ -1,0 +1,51 @@
+﻿# 004 基线（T002） 2026-11-09 10:16
+
+## git status --short
+```
+ M .gitignore
+ M .specify/memory/constitution.md
+ M CONTRIBUTING.md
+ M CONTRIBUTING.zh-CN.md
+ M Makefile
+ M README.md
+ M README.zh-CN.md
+ M src-tauri/src/commands.rs
+ M src-tauri/src/lib.rs
+ M src-tauri/src/model.rs
+ M src/App.vue
+ M src/components/HelpSheet.vue
+ M src/components/TitleBar.vue
+ M src/lib/api.ts
+ M src/lib/i18n.ts
+?? .pi/
+?? AGENTS.md
+?? scripts/speckit/
+?? specs/
+?? src/components/StatsSheet.vue
+?? src/lib/stats.ts
+```
+
+## 依赖三件（SC-010 的 0 行对照）
+```
+(空)
+```
+
+## 双语基线（C008 对照）
+```
+PASS dict zh=189 en=189 键与占位符成对；content: steps=4 rows=10 why=4
+```
+
+## 构建体积基线（SC-011 对照）
+```
+index-IA8oy0lj.js  219341 bytes
+index-CRVFMetV.css  29692 bytes
+```
+
+## 演示库（T001 装回）
+```
+db      : C:\Users\songlk2\AppData\Roaming\com.tool.suoji\suoji.db
+bytes   : 114688
+tasks    : 288
+meta     : 8
+day_notes: 3
+```

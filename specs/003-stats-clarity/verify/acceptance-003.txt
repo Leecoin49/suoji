@@ -1,0 +1,41 @@
+# 003-stats-clarity / T029 验收记录
+
+环境：Windows、`pnpm tauri dev`（dev 实例）、演示库 288 条任务（2026-08-12 → 2026-11-09，含今天）
+演示库来源与还原方式见 `verify/demo-note.txt`。
+
+状态口径：**通过（自动）** = 脚本断言或只读扫描可复现；**待人工** = 必须在面板里点一遍，由人填。
+
+| SC | 状态 | 证据 / 待办 |
+|---|---|---|
+| SC-001 | 待人工 | 打开面板 10 秒内回答「最忙的是哪几天」「中间断过没有」。结论句已把两件事写在同一行（`stats.conclusionPeak` + `stats.conclusionGap`/`conclusionNoGap`），无需滚动 |
+| SC-002 | 通过（自动，数据层） | `verify/clarity-report.txt`：`C-1 conclusion.done === view.doneTotal`、`F-1 筛选条数 === 桶 count`、`Σ count === 明细数`（30/90/365/1096 四档）。三处对照（结论句 / 明细 / 未标注小计）在面板上仍待人眼复核 5 个区间 |
+| SC-003 | 待人工 | 悬停每个桶：`barLabel()` 恒输出「日期范围，件数，占比」三段，0 件桶 share=0 → 「0 件 · 占 0%」。逐桶人工过一遍 |
+| SC-004 | 待人工 | 点桶下钻：条数已由 `F-1` 断言；面板上点 1/8/15/30/0 件桶各一次，再点一次恢复 |
+| SC-005 | 通过（自动，分档逻辑） | `clarity-report.txt`：`S-1 sparsityOf → none / undatedOnly / one / few / ok` 五档全部可达且互斥；`stats.emptyNone|emptyOne|emptyFew` + `emptyNextHint` 四档文案互不相同。视觉上三档各开一次仍待人工 |
+| SC-006 | 待人工 | 纯键盘全流程：`Tab` 到预设 → `→`/`Enter` 下钻进桶 → `Enter` 取消 → 「还有 N 天」展开 → 收起 → `Esc` 关闭。实现为 roving tabindex（图形只占 1 个 Tab 位） |
+| SC-007 | 通过（自动） | `verify/gate-report.txt`：`check-i18n.ps1` PASS，`dict zh=189 en=189`；面板内切语言后无裸 key 靠 `t()` 的 `table[key] ?? key` 兜底，key 全存在 |
+| SC-008 | 通过（自动） | `verify/perf-report-003.txt`：10 000 条 / 365 天档，toView 7.36 ms + axisBucketsOf 0.01 + conclusionOf 3.35 + groupDoneByDay 0.91 = 聚合 11.64 ms，加 SQL 6.0 ms 共 17.64 ms；相对 002 的聚合增量 3.34 ms（限额 100 ms），总耗时限额 500 ms |
+| SC-009 | 部分通过（自动） | `verify/readonly-check.txt`：组件内 `api.*` 只有 `api.getStats`，无写命令、无 `localStorage`/`sessionStorage`、无直接 `invoke`。**字节级前后比对**需在面板上悬停/下钻/折叠后复测（见下） |
+| SC-010 | 通过（自动） | `git diff --stat package.json pnpm-lock.yaml src-tauri/Cargo.toml` 输出为空 |
+| SC-011 | 通过（自动，按现实基线） | 组件内颜色 token 全部是既有语义 token（`paper/card/ink/line/accent/warn`），**硬编码颜色 0 个**；字号 8 档 `10.5/11/11.5/12/12.5/13.5/14/22`，与既有 `HistorySheet.vue` 完全相同（spec 写的「≤5 档」与仓库现状不符——HistorySheet 本身已是 8 档，这里按既有基线判定而不是新造一套） |
+
+## SC-009 的前后比对怎么做
+
+1. **操作前**（已记录在 `.pi/tmp/sc009-before.txt`）：
+   `sha256 = e88b183873140931c282eeffdb7f2524fc02ed86375b9b25dbb2fb797b6b1d68`，`bytes 114688`，`tasks 288 / meta 8 / day_notes 3`
+2. 在面板里悬停若干桶、下钻 3 次、展开/折叠 3 次、切 2 次区间
+3. 复跑：
+   ```powershell
+   python specs\003-stats-clarity\verify\count_rows.py
+   ```
+   期望：字节与三表行数与「操作前」完全一致。
+
+（说明：应用启动本身会跑顺延/结账，所以「打开面板前」的快照必须在应用已启动、顺延已完成之后取——上面这份就是。）
+
+## 与 spec 的偏差（已在实现中落定，供评审）
+
+1. **结论句的件数不再在数字区重复一次**：T013 要求数字区保留「总数」，但那句话与结论句完全相同，同屏出现两次属于噪声。现在件数只由结论句承担，数字区给平均/连续/环比/积压。`FR-003` 的「结论句件数 === 展示值」由 `C-1` 断言守。
+2. **`conclusionOf` 签名多了第三个参数**：`(view, today, entries)`。周/月桶答不出「最忙的一天」，节奏必须按天算，而 `StatsView` 只有桶。契约 §2 已同步注明。
+3. **新增 4 条 key 超出契约 §5 的 30 键清单**：`stats.groupMoreItems`（组内还有 n 条，T019 需要却漏列）、`stats.filterActiveDay`（单日桶不写两次日期）、以及 §5 把 `axisZero/axisMid/axisMax` 记为一行但实为三条。合计 34 条，155 → 189。
+4. **周/月档不出节奏分句**：>90 天时结论句只剩「件数 + 环比」，不编「最忙的一天」。
+5. **脚注、折叠、筛选全部只在内存**：切换区间即重置，不持久化（`FR-001`/契约 §6）。

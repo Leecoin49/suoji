@@ -1,0 +1,37 @@
+﻿# 004 回归（T022） 2026-11-09
+
+## 002 fixture_check.py
+```
+PASS 30-day window 10-01..10-30
+PASS single day 10-21
+PASS single day 10-01
+PASS boundary 10-30 excludes 10-31 00:00
+PASS empty window 11-01..11-05 (prev 10-27..10-31)
+PASS cross-year 2025-12-01..2026-10-30
+PASS bucket sum equals detail count (6)
+per-day: {'2026-10-01': 2, '2026-10-05': 1, '2026-10-20': 1, '2026-10-21': 1, '2026-10-30': 1}
+
+OK (0 failure(s))
+```
+
+## 003 clarity_check.mjs
+```
+ok    1096 天: 总桶 Σ 不含 NaN
+
+OK (0 failure(s))
+```
+## 003 perf_agg_003.mjs
+```
+## 断言
+ok   全部耗时为有限数
+ok   总耗时 17.25 ms ≤ 500 ms（SC-008）
+ok   聚合增量 2.95 ms ≤ 100 ms
+ok   365 天档 Σ 桶 = 明细数（3324）
+
+## 未计入的部分（已知限制）
+- Vue 渲染与 DOM 合成；
+- IPC（JSON 序列化 + 跨进程复制）；
+- 冷启动与首帧。
+
+OK (0 failure(s))
+```

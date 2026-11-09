@@ -1,0 +1,14 @@
+﻿# 004 只读核验（T023） 2026-11-09
+
+| 检查 | 结果 | 期望 |
+|---|---|---|
+| `StatsSheet.vue` 里 `api.*` 调用数 | 1 | 1 |
+| 具体调用 | `api.getStats` | 只有它 |
+| `localStorage` / `sessionStorage` / `invoke(` / 大写 SQL 写语句 命中 | 0 | 0 |
+| demo 库 SHA256（扫描前） | D295699C4183D68CF090A8FAD4BBB28B8808680E49EE069BE4CC37423D5392A4 | — |
+| demo 库 SHA256（扫描后） | D295699C4183D68CF090A8FAD4BBB28B8808680E49EE069BE4CC37423D5392A4 | 与扫描前一致 |
+| 哈希一致 | True（一致） | True |
+
+> 口径说明：SQL 关键词用 `\bINSERT\b|\bUPDATE\b|\bDELETE\b` 且 **大小写敏感**（PowerShell 的 `Select-String` 默认忽略大小写，裸 `delete` 会误命中 `Set.delete`，见 `StatsSheet.vue` 第 359、366 行）。
+
+> 现场说明：T001 关停后应用未再启动，所以「打开面板前后库不变」这一半只能真人复核（SC-009 记为待真人确认）。命令层已确认 `get_stats` 无写语句（见 `specs/002-stats-dashboard/verify/sc009-readonly.txt`），前端只调只读接口。

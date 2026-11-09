@@ -1,0 +1,60 @@
+﻿003-stats-clarity / T009 clarity_check.mjs
+运行时间：2026-11-09 09:06:13
+
+ok    C-1 conclusion.done === view.doneTotal  — 30 vs 30
+ok    C-1 同日 明细数 === doneTotal  — 30 vs 30
+ok    C-3 最忙一天（并列取最早）  — got {"date":"2026-10-21","count":3}
+ok    C-3 peak === null ⟺ done === 0
+ok    C-4 断档 = 1（11-02；今天 11-09 的 0 件不算）  — got 1
+ok    C-4 过了今天之后 11-09 才计入断档  — got 2
+ok    C-4 过去的区间没有「今天」例外  — got 3
+ok    B-2 Σ share ≈ 1  — got 0.9999999999999999
+ok    B-2 doneTotal === 0 时 share 全 0 且无 NaN
+ok    B-5 heightPct 随 count 单调不减
+ok    B-5 非零柱至少 4%
+ok    B-5 0 件柱高为 0
+ok    isPeak 覆盖全部并列最大值
+ok    isPartial 只标今天所在桶
+ok    axisTicksOf(1) === [0,1,1]
+ok    axisTicksOf(9)  — got [0,5,9]
+ok    axisTicksOf(0)  — got [0,0,0]
+ok    G-1 组按日期严格倒序  — 2026-11-08>2026-11-07>2026-11-06>2026-11-05>2026-11-04>2026-11-03>2026-11-01>2026-10-31>2026-10-30>2026-10-29>2026-10-28>2026-10-27>2026-10-26>2026-10-25>2026-10-24>2026-10-23>2026-10-22>2026-10-21>2026-10-20>2026-10-19>2026-10-18>2026-10-17>2026-10-16>2026-10-15>2026-10-14>2026-10-13>2026-10-12>2026-10-11
+ok    G-1 date 恒为 YYYY-MM-DD
+ok    G-1 Σ count === 明细数
+ok    G-1 组内完成时刻倒序
+ok    G-1 同日同时刻按 id 升序稳定
+ok    F-1 筛选条数 === 桶 count  — 3 vs 3
+ok    F-1 null 时原样返回
+ok    F-1 空桶筛选出 0 条
+ok    S-1 sparsityOf → none  — got none
+ok    S-1 sparsityOf → undatedOnly  — got undatedOnly
+ok    S-1 sparsityOf → one  — got one
+ok    S-1 sparsityOf → few  — got few
+ok    S-1 sparsityOf → ok  — got ok
+ok    S-1 五档全部可达且互斥  — none,undatedOnly,one,few,ok
+ok    30 天: gran day  — got day
+ok    30 天: 桶数 30  — got 30
+ok    30 天: Σ count === 明细数  — 30 vs 30
+ok    30 天: 首末桶裁剪落在区间内
+ok    30 天: 全部数值有限
+ok    30 天: 总桶 Σ 不含 NaN
+ok    90 天: gran day  — got day
+ok    90 天: 桶数 90  — got 90
+ok    90 天: Σ count === 明细数  — 90 vs 90
+ok    90 天: 首末桶裁剪落在区间内
+ok    90 天: 全部数值有限
+ok    90 天: 总桶 Σ 不含 NaN
+ok    365 天: gran week  — got week
+ok    365 天: 桶数 53  — got 53
+ok    365 天: Σ count === 明细数  — 365 vs 365
+ok    365 天: 首末桶裁剪落在区间内
+ok    365 天: 全部数值有限
+ok    365 天: 总桶 Σ 不含 NaN
+ok    1096 天: gran month  — got month
+ok    1096 天: 桶数 37  — got 37
+ok    1096 天: Σ count === 明细数  — 374 vs 374
+ok    1096 天: 首末桶裁剪落在区间内
+ok    1096 天: 全部数值有限
+ok    1096 天: 总桶 Σ 不含 NaN
+
+OK (0 failure(s))

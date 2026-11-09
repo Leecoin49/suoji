@@ -1,0 +1,60 @@
+﻿# 004 冻结面快照（T003） 2026-11-09
+
+| 项 | 实测 | 期望 |
+|---|---|---|
+| `lib.rs` 的 `generate_handler![]` 条目 | 17 | 17 |
+| `api.ts` 的 `invoke<` 调用点 | 16 | 16（`show_window` 故意不经 api.ts） |
+| `StatsSheet.vue` 里 `api.*` 调用数 | 1 | 1（只有 getStats） |
+| `capabilities/default.json` 权限条目 | 15 | 15 |
+
+> 注：`lib.rs` 里另有 `commands::show_main` × 5（Rust 内部函数，不是 IPC 命令），
+> 所以裸 `grep -c "commands::"` 会得 22；口径以 `generate_handler![]` 里的 17 条为准。
+
+## StatsRaw 字段（model.rs）
+```
+pub struct StatsRaw {
+```
+
+## model.rs 的 StatsRaw 块原文
+```rust
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsRaw {
+    pub span: StatsSpan,
+    pub prev: StatsSpan,
+    pub done: Vec<DoneEntry>,
+    pub prev_done: i64,
+    pub rolled: Vec<RollEntry>,
+    pub backlog: i64,
+    pub undated: i64,
+    pub clamped: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            morning_time: "09:00".into(),
+            evening_time: "18:30".into(),
+```
+
+## stats.ts 既有导出（004 只追加，不修改）
+```
+export type Granularity = "day" | "week" | "month";
+export type CompareState = "up" | "down" | "flat" | "none";
+export function isIsoDay(value: string): boolean {
+export function validateRange(
+export function granularityOf(days: number): Granularity {
+export function bucketize(entries: DoneEntry[], span: StatsSpan): Bucket[] {
+export function maxCountOf(buckets: Bucket[]): number {
+export function streakOf(entries: DoneEntry[], span: StatsSpan, today: string): number {
+export function compareOf(current: number, previous: number): Compare {
+export type Sparsity = "none" | "undatedOnly" | "one" | "few" | "ok";
+export const UNDATED_KEY = "__undated__";
+export function conclusionOf(view: StatsView, today: string, entries: DoneEntry[]): Conclusion {
+export function axisBucketsOf(view: StatsView, today: string): AxisBucket[] {
+export function axisTicksOf(maxCount: number): [number, number, number] {
+export function sparsityOf(view: StatsView): Sparsity {
+export function groupDoneByDay(entries: DoneEntry[]): DayGroup[] {
+export function filterEntries(entries: DoneEntry[], filter: DrillFilter | null): DoneEntry[] {
+export function toView(raw: StatsRaw, today: string): StatsView {
+```

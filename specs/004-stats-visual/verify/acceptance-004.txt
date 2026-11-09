@@ -1,0 +1,53 @@
+# 004 人工验收清单（T027） 2026-11-09
+
+自动化能证明的部分写在 `quickstart.md` §2 的「结果」列与各 `verify/*.txt` 里。本文件只列**必须真人动手**的项，逐条给出点击步骤与判定标准，未确认前一律记「待真人确认」。
+
+## 前置
+
+1. 还原真库（或另装一份 demo）后启动：`pnpm tauri dev`，窗口默认 760×780。
+2. 备份命令（开面板前）：
+
+   ```powershell
+   Copy-Item "$env:APPDATA\com.tool.suoji\suoji.db" "$env:APPDATA\com.tool.suoji\suoji.db.bak-manual"
+   ```
+
+## 逐项步骤
+
+| SC | 步骤 | 判定 | 结果 |
+|---|---|---|---|
+| SC-001 | 标题栏点「复盘」图标 → 不滚动、不悬停，读第一张卡上的结论句 | 10 秒内能说出「最忙哪天」「中间断没断」 | 待真人确认 |
+| SC-002 | 30 天档看热力图，找颜色最深的一列 | 能指出「哪一周最密」，且该列至少一格带峰值圆点 | 待真人确认 |
+| SC-003 | 保持 760×780，看四张指标卡 | 四卡同一行、等高、无换行、无需滚动 | 待真人确认 |
+| SC-004 | 7 → 30 → 90 各点 3 次 | 图区高度不变、无空白闪烁（可录屏逐帧看） | 待真人确认 |
+| SC-005 | 只用键盘：Tab 进面板 → 方向键移格 → Enter 下钻 → Enter 取消 | ≤10 秒完成；焦点环始终可见 | 待真人确认 |
+| SC-006 | 截图后转灰度（或用色盲模拟） | 环（今天）、点（峰值）、中性格（0 件）三者仍可区分 | 待真人确认 |
+| SC-007 | 切换区间看淡入；再开系统「减少动态效果」重切 | 淡入 150±50ms；开启后 0ms（无动画） | 待真人确认 |
+| SC-009 | 打开面板 → 切区间 → 悬停 → 下钻 → 关闭，然后比对哈希 | SHA256 前后一致 | 待真人确认 |
+
+SC-009 的哈希比对（应用开着也能算，用只读打开字节流）：
+
+```powershell
+function Hash($p) {
+  $fs = [IO.File]::Open($p, 'Open', 'Read', 'ReadWrite')
+  $sha = [Security.Cryptography.SHA256]::Create()
+  $h = ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('x2') }) -join ''
+  $fs.Close(); $h
+}
+Hash "$env:APPDATA\com.tool.suoji\suoji.db"
+```
+
+注意：**不要用 `Get-FileHash`**，SQLite 开着时会报「正由另一进程使用」。
+
+## 已由自动化覆盖、无需真人重复的项
+
+| SC | 证据 |
+|---|---|
+| SC-002（数据层：35 周 × 7 格、月标签按列、密度可读） | `verify/visual-report.txt` |
+| SC-006（结构层：环 / 点 / 中性三种标记互不依赖色相） | `verify/readonly-004.txt` + `StatsSheet.vue` 的 `ring-*` / 峰值点分档 |
+| SC-008（002、003 回归） | `verify/regression-004.txt` |
+| SC-010（依赖零变动） | `verify/build-report-004.txt` |
+| SC-011（JS ≤ +8 kB） | `verify/build-report-004.txt`（+7651 B） |
+
+## 收尾
+
+真人确认后：在 `tasks.md` 勾掉对应项、在本表「结果」列写「通过 + 日期」，然后按 `demo-note-004.txt` 确认库已是用户真库（`suoji.db.bak-20261106-1730`，SHA256 `7A6E3EC1BCBD5E50A026E371811E57DE4100B190B6E1FD74A3843FA717CE82E1`）。

@@ -1,0 +1,22 @@
+# 004 门禁报告（T026） 2026-11-09
+
+全量门禁手工执行结果。命令均在仓库根 `D:\Users\songlk2\Desktop\Tool\suoji` 下运行。
+
+| 命令 | 结果 | 期望 | 判定 |
+|---|---|---|---|
+| `scripts\speckit\gate.ps1` | `PASS 10   FAIL 0   SKIP 0`（闸门通过） | 10 / 0 / 0 | ✅ |
+| `scripts\speckit\check-i18n.ps1` | `PASS dict zh=203 en=203 键与占位符成对；content: steps=4 rows=10 why=4` | zh=203 en=203 | ✅ |
+| `pnpm exec vue-tsc --noEmit` | 无输出，exit 0 | 无错误 | ✅ |
+| `cargo fmt --manifest-path src-tauri\Cargo.toml --check` | 无输出，exit 0 | 无差异 | ✅ |
+| `cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings` | `Finished dev profile ... in 1.39s`，exit 0 | 无差异 | ✅ |
+| `pnpm build` | 1613 模块，JS `index-DXqzm6tn.js` 226992 B，CSS `index-tCMsP0jI.css` 33009 B，4.40s | 见 build-report-004.txt | ✅ |
+
+## 越界哨兵
+
+`cargo fmt` 与 `cargo clippy` 两条本 feature **没有改任何 Rust 文件**，跑它们只为证明「没越界」：
+`git status --short` 里 `src-tauri/` 一项都没有。若这两条哪天报差异，说明有人动了后端，需要回到契约再确认。
+
+## 备注
+
+- `cargo clippy` 输出末尾在 PowerShell 里会包一层 `NativeCommandError`（因为 cargo 把 `Finished` 写到 stderr），这是 PowerShell 的行为，`$LASTEXITCODE` 为 0，不是失败。
+- C004 的占位符扫描**只看 `spec.md`**（`scripts\speckit\gate.ps1` 里 `$placeholderPattern` 匹配的是 `$spec`），计划与快速验收入门文档里的 `Describe`/`specific` 之类词面不会误判；反倒是 `spec.md` 里被模板带进来的 `[DATE]`、`Describe ` 之类要清干净。

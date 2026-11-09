@@ -1,0 +1,22 @@
+006 验收记录（2026-11-09）
+
+自动化已覆盖：
+- `pnpm exec vue-tsc --noEmit` 干净（ProjectSheet.vue 的 v-for 内 ref 改为函数 ref 后通过）
+- `cargo fmt --check` 干净；`cargo clippy --all-targets -D warnings` 干净
+- `gate.ps1` 与 `check-i18n.ps1`：见 verify/auto_check.txt
+- 迁移：`nodes` 表由 `MIGRATION_2` 建；首启后 `meta.schema_version=2`、`nodes` 0 行、三表行数不变（verify/after_check.py 输出）
+
+逐条状态：
+- SC-001 打开 ≤1 次点击：标题栏 FolderTree 图标 → 面板（与「记录/复盘」同层，`z-30`）。待人工确认无闪烁。
+- SC-002 三处同时更新：`complete_node`/`reopen_node` 返回整条链，`nodes` ref 整体替换 → 链、进度、当前标记同帧刷新。
+- SC-003 持久化顺序：`list_nodes` 按 `sort_order ASC, created_at ASC`；新增取 `COALESCE(MAX(sort_order),-1)+1`。
+- SC-004 两个极端状态：「还没有步骤」引导 + 「这一串走完了」徽标，均不显示空进度条。
+- SC-005 标题校验：save_node 去空白后为空 → `nodes: empty title`；超 60 字 → `nodes: title too long`；前端 `disabled` 空标题输入。
+- SC-006 切换项目：胶囊一次点击，`pick()` 立即 `list_nodes` 替换内容。
+- SC-007 归档项目：`projects` 按 `archived` 排序且归档项加 `line-through`，仍可点开。
+- SC-008 失败保留现状：每个写操作各自 try/catch，失败只设 `error`，不清空 `nodes`。
+- SC-009 依赖零增长：`pnpm-lock.yaml` 与 `Cargo.toml` 未改（baseline 已记录 diff 为空）。
+- SC-010 离线：命令只碰本地 SQLite。
+- SC-011 双语：`nodes.*` 15 个 key + `nav.projects` 成对写入，check-i18n 248/248。
+
+待人工：SC-001/SC-002 的手感；以及真库里真的新建一个项目、加两步、打勾、改名的完整一轮（这会写用户库，故未自动执行）。

@@ -1,0 +1,14 @@
+005 迁移前基线（2026-11-09，只读）
+
+库：%APPDATA%\com.tool.suoji\suoji.db（备份为同目录 suoji.db.bak-005）
+备份大小：36864 bytes
+备份 SHA256：994939bbafb94df759eaaf873005b78810dc582a93b9c019a668e52c489fd06b
+integrity_check：ok
+user_version：0（从未写过）
+meta.schema_version：不存在（首版没有迁移基座）
+tasks：9 行，15 列（无 project_id）
+meta：8 行
+day_notes：0 行
+
+表清单：tasks, meta, day_notes（仅三张）
+meta 键：last_rollover=2026-11-09, closed_out_date=2026-11-03, morning_time=09:00, evening_time=17:25, hotkey=Ctrl+Alt+Space, autostart=1, last_evening=2026-11-03, last_morning=2026-11-05

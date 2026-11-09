@@ -1,0 +1,19 @@
+006 门禁与迁移记录（T016 / T017）
+生成时间：2026-11-09 17:23
+
+## 迁移幂等（T016）
+详见 `specs/005-project-tags/verify/migration-check.txt` 第 3、4 节（两个 feature 共用同一套 `MIGRATIONS`，
+005 的 MV1 建 projects/tags/task_tags + tasks.project_id，006 的 MV2 建 nodes + idx_nodes_project）。
+
+第一次启动（MV1 + MV2 一起跑）：
+  meta.schema_version = 2；nodes 表建立、0 行；projects/tags/task_tags 建立、0 行；
+  tasks 16 列、行数 9 不变；integrity_check = ok
+重启一次（幂等）：
+  tasks/nodes/projects/tags 行数完全一致（26/3/3/4），schema_version 仍为 2，无重复 DDL
+
+## 五条命令（T017）
+pnpm exec vue-tsc --noEmit                        → 干净
+cargo fmt --manifest-path src-tauri/Cargo.toml --check → 无差异
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings → Finished（0 warning）
+scripts/speckit/gate.ps1                          → PASS 10  FAIL 0  SKIP 0
+scripts/speckit/check-i18n.ps1                    → PASS dict zh=250 en=250

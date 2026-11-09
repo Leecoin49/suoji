@@ -1,0 +1,28 @@
+003-stats-clarity / T001 演示库占位记录
+生成时间：2026-11-09 09:03
+
+## 1. 三个库文件（都在 %APPDATA%\com.tool.suoji\）
+
+| 文件 | 字节 | SHA256 | 说明 |
+|---|---|---|---|
+| suoji.db | 114688 | 52910d81651cfa2add6bb28eb17979497beccac34db5c1a17d1a7a88e1c966d2 | **当前生效**，003 演示库（= specs\003-stats-clarity\verify\demo.db） |
+| suoji.db.bak-20261109-0903 | 106496 | 7e76b8778b9b865b25601ddba9972824ffdcdfb271f28ca8200ac8f68b5838fa | 本轮操作前的状态（002 的演示库，248 条任务） |
+| suoji.db.bak-20261106-1730 | 36864 | 7a6e3ec1bcbd5e50a026e371811e57de4100b190b6e1fd74a3843fa717ce82e1 | **用户真实数据**（9 条任务全部已完成，meta 8 行） |
+
+## 2. 收尾（T029）必须还原成哪一个
+
+还原 **`suoji.db.bak-20261106-1730`** → `suoji.db`，并核对 SHA256 回到
+`7a6e3ec1bcbd5e50a026e371811e57de4100b190b6e1fd74a3843fa717ce82e1`。
+
+`bak-20261109-0903` 只是"操作前一刻的样子"，它里面装的是 002 的演示数据，
+**不是**用户数据，不要用它还原。
+
+## 3. 演示库内容（seed_demo.py，固定种子 20261106）
+
+- tasks 288 行；有完成时刻 273 行；未标注完成时间 2 行；backlog 12 行
+- 覆盖 90 天：2026-08-12 → 2026-11-09（含今天，用于验证"今天未过完"标记）
+- 重新生成：`python specs\002-stats-dashboard\verify\seed_demo.py --out specs\003-stats-clarity\verify\demo.db`
+
+## 4. 应用状态
+
+T001 执行前已关停 dev 实例（PID 17876）。

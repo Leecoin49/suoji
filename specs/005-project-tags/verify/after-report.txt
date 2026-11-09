@@ -1,0 +1,15 @@
+﻿db: C:\Users\songlk2\AppData\Roaming\com.tool.suoji\suoji.db (86016 bytes)
+integrity: ok
+user_version: 0
+tables: day_notes, meta, nodes, projects, tags, task_tags, tasks
+meta.schema_version: 2
+tasks 列（16）: id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, roll_count, last_rolled_at, sort_order, deleted, created_at, updated_at, project_id
+project_id 追加在末尾: True
+tasks 行数: 9
+meta 行数: 9
+day_notes 行数: 0
+nodes 行数: 0
+projects 行数: 0
+tags 行数: 0
+task_tags 行数: 0
+indexes: idx_nodes_project, idx_task_tags_tag, idx_tasks_day, idx_tasks_done, ux_projects_name, ux_tags_name

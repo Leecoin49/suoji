@@ -1,0 +1,29 @@
+# 003-stats-clarity / T025 构建报告
+
+记录时间：2026-11-09（`pnpm build` 于字号统一、文案改写、稀疏态补「推后清单」之后重跑）
+
+## 结果
+
+```
+> vue-tsc --noEmit && vite build
+✓ 1613 modules transformed.
+dist/index.html                     0.39 kB │ gzip:  0.26 kB
+dist/assets/index-CRVFMetV.css     29.69 kB │ gzip:  6.08 kB
+dist/assets/index-IA8oy0lj.js     219.34 kB │ gzip: 74.27 kB
+✓ built in ~4s
+```
+
+- `pnpm exec vue-tsc --noEmit`：exit 0
+- `pnpm build`：exit 0
+- 模块数 1613，与 002 完全一致（没有引入新依赖或新模块）
+- JS 205.33 kB（002） → **219.34 kB，+14.0 kB / +6.8%**
+
+## 为什么增量在这个量级
+
+| 来源 | 说明 |
+|---|---|
+| `src/lib/stats.ts` 新增 5 个类型 + 5 个函数 | 结论句、图形刻度、按天分组、下钻筛选、稀疏分档 |
+| `src/components/StatsSheet.vue` 重写 | 结论句、竖柱图与刻度、悬停提示、筛选条、分组折叠、口径脚注、键盘与 ARIA |
+| `src/lib/i18n.ts` 新增 34 条 key（zh + en 成对） | 155 → 189 |
+
+未新增运行时依赖：`package.json` / `pnpm-lock.yaml` / `src-tauri/Cargo.toml` 的 `git diff` 均为空（见 SC-010）。

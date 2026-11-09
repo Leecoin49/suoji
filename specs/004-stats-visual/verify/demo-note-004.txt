@@ -1,0 +1,42 @@
+﻿# 004 演示数据现场（T001）
+
+生成时间：2026-11-09 10:15（本地）
+
+## 三个库
+
+| 角色 | 路径 | 字节 | SHA256 |
+|---|---|---|---|
+| 当前生效（演示） | `%APPDATA%\com.tool.suoji\suoji.db` | 114688 | D295699C4183D68CF090A8FAD4BBB28B8808680E49EE069BE4CC37423D5392A4 |
+| 本次备份（003 演示库） | `suoji.db.bak-20261109-1015` | 114688 | E88B183873140931C282EEFFDB7F2524FC02ED86375B9B25DBB2FB797B6B1D68 |
+| 本次备份（004 生成的种子文件副本） | `specs\004-stats-visual\verify\demo.db` | 114688 | D295699C4183D68CF090A8FAD4BBB28B8808680E49EE069BE4CC37423D5392A4 |
+| **用户真库** | `suoji.db.bak-20261106-1730` | 36864 | 7A6E3EC1BCBD5E50A026E371811E57DE4100B190B6E1FD74A3843FA717CE82E1 |
+
+> T028 收尾必须把 `suoji.db` 还原成第三行那份用户真库（36864 字节、9 条已完成、meta 8 行）。
+
+## 生成方式
+
+```
+python specs\002-stats-dashboard\verify\seed_demo.py --out specs\004-stats-visual\verify\demo.db --days 90
+```
+
+输出：288 条任务（有完成时刻 273、无完成时刻 2、未完成 12），覆盖 90 天（2026-08-12 → 2026-11-09），固定种子可重跑。
+
+## 现场状态
+
+- 我操作前运行的 dev 实例（`suoji.exe` PID 16060，09:12 启动）已 Stop-Process，vite 已随之退出。
+- 备份是在实例仍运行时用 Copy-Item 做的（SQLite 默认共享读，副本完整：三表行数与 seed 一致）。
+
+## 5. 收尾还原（T028，2026-11-09）
+
+| 步骤 | 结果 |
+|---|---|
+| 还原前进程检查 | 无 `suoji` / `琐记` / `vite` 进程（应用在 T001 关停后未启动） |
+| 还原动作 | `Copy-Item suojii.db.bak-20261106-1730 → suojii.db -Force`，并清掉 `suoji.db-wal` / `suoji.db-shm`（不存在，无输出） |
+| 还原后大小 | 36864 bytes |
+| 还原后 SHA256 | `7a6e3ec1bcbd5e50a026e371811e57de4100b190b6e1fd74a3843fa717ce82e1` |
+| 与备份比对 | **完全一致**（备份 `7A6E3EC1BCBD5E50A026E371811E57DE4100B190B6E1FD74A3843FA717CE82E1`） |
+| 内容核对 | tasks 9 / meta 8 / day_notes 0，与备份一致 |
+
+同时核对了待删的演示库：`specs/004-stats-visual/verify/demo.db` = 114688 bytes、tasks 288 / meta 8 / day_notes 3，与装进真实路径的 004 演示数据同源（SHA256 `D295699C4183D68CF090A8FAD4BBB28B8808680E49EE069BE4CC37423D5392A4`，与装库时刻一致）。
+
+结论：用户真库已回到 11-06 17:30 的状态；004 期间的演示数据不再占用真实路径。若要复看演示效果，重新执行 `seed_demo.py --out specs\004-stats-visual\verify\demo.db --days 90` 即可重建。

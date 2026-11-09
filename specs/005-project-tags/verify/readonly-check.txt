@@ -1,0 +1,20 @@
+005 只读校验（T019）
+生成时间：2026-11-09 17:20
+方法：对 `src/components/StatsSheet.vue` 与 `src/lib/classes.ts` 做正则扫描
+
+扫描 1：写命令 / 直连 invoke / 本地存储
+  pattern: api.(addTask|setDone|setNote|pushToTomorrow|backToInbox|moveToDate|dropTask|closeOut|
+           saveSettings|setLocale|saveProject|saveTag|deleteTag|setTaskProject|setTaskTags|
+           saveNode|deleteNode|completeNode|reopenNode) | localStorage | sessionStorage | invoke(
+  命中：0
+
+扫描 2：复盘面板实际调用的 api 方法（去重）
+  api.getStats        ← 唯一一个，且是只读命令（17 条既有 IPC 之一，002 冻结面）
+
+结论：
+  · 复盘面板的读取路径没有新增写命令，也没有绕过 `src/lib/api.ts` 直接 invoke。
+  · 归类/新建项目/新建标签都发生在 `ClassSheet.vue`（显式用户动作），不在面板打开路径上。
+  · 面板状态（时间筛选、分类筛选、折叠）全部在组件内存里，不写 localStorage，关掉即丢。
+
+范围外说明：`store.loadClasses(true)` 会调用 `api.listClasses`（只读 SELECT），
+属于 005 新增的读取命令，本 feature 已在 spec 的「兼容边界」登记，不是写入。

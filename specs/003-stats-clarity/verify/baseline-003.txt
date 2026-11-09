@@ -1,0 +1,47 @@
+﻿003-stats-clarity / T002 改动前基线
+记录时间：2026-11-09 09:03:40
+
+## 1. git status --short
+ M .gitignore
+ M .specify/memory/constitution.md
+ M CONTRIBUTING.md
+ M CONTRIBUTING.zh-CN.md
+ M Makefile
+ M README.md
+ M README.zh-CN.md
+ M src-tauri/src/commands.rs
+ M src-tauri/src/lib.rs
+ M src-tauri/src/model.rs
+ M src/App.vue
+ M src/components/HelpSheet.vue
+ M src/components/TitleBar.vue
+ M src/lib/api.ts
+ M src/lib/i18n.ts
+?? .pi/
+?? AGENTS.md
+?? scripts/speckit/
+?? specs/
+?? src/components/StatsSheet.vue
+?? src/lib/stats.ts
+
+## 2. 依赖与清单是否有改动（应全为空）
+pnpm-lock.yaml     : 
+src-tauri/Cargo.toml: 
+package.json       : 
+
+## 3. 演示库行数（count_rows.py）
+db      : C:\Users\songlk2\AppData\Roaming\com.tool.suoji\suoji.db
+bytes   : 114688
+tasks    : 288
+meta     : 8
+day_notes: 3
+
+## 4. 真实库备份行数（用户数据，T029 要还原的那份）
+db      : C:\Users\songlk2\AppData\Roaming\com.tool.suoji\suoji.db.bak-20261106-1730
+bytes   : 36864
+tasks    : 9
+meta     : 8
+day_notes: 0
+
+## 5. check-i18n.ps1（记录改动前的键数）
+PASS dict zh=155 en=155 键与占位符成对；content: steps=4 rows=10 why=4

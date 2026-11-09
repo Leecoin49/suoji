@@ -1,0 +1,60 @@
+﻿ok    levelOf(-1) === 0  — got 0
+ok    levelOf(0) === 0  — got 0
+ok    levelOf(1) === 1  — got 1
+ok    levelOf(2) === 2  — got 2
+ok    levelOf(3) === 2  — got 2
+ok    levelOf(4) === 3  — got 3
+ok    levelOf(6) === 3  — got 3
+ok    levelOf(7) === 4  — got 4
+ok    levelOf(100) === 4  — got 4
+ok    levelOf(NaN) === 0  — got 0
+ok    H-1 每列恒 7 格  — 列数 5
+ok    H-1 总格数 = 7×列数  — 35 vs 35
+ok    H-1 首列为区间起始所在周的周一  — 2026-09-28
+ok    H-1 末列为区间结束所在周的周日  — 2026-11-01
+ok    H-1 列数 = 5（09-28…11-01）  — 5
+ok    H-2 档位随件数单调
+ok    H-2 相邻档位不逆转
+ok    H-3 今天至多一个  — 1 个
+ok    H-3 今天就是区间末日  — 2026-10-30
+ok    H-4 峰值并列全标  — 2 个峰值 / max=7
+ok    H-4 非峰值不标
+ok    H-5 firstMonday ≤ span.start
+ok    H-5 lastSunday ≥ span.end
+ok    H-6 dates 升序
+ok    H-6 dates 首末 = 区间首末
+ok    H-6 dates 长度 = 区间天数  — 30
+ok    区间外格 count/level 归零
+ok    区间外格不标今天/峰值
+ok    区间内格全部非 outside
+ok    区间内 30 格 + 区间外 5 格 = 35  — 30 / 5
+ok    count 与桶一一对应（抽查 10-05）
+ok    H-8 cellSize 1 列 → 22  — 1 列 / 22px
+ok    H-8 cellSize 5 列 → 22  — 5 列 / 22px
+ok    H-8 cellSize 8 列 → 18  — 8 列 / 18px
+ok    H-8 cellSize 9 列 → 14  — 9 列 / 14px
+ok    H-8 cellSize 13 列 → 14  — 13 列 / 14px
+ok    T-1 ticks 非空
+ok    T-1 span 之和 = 列数  — 5 vs 5
+ok    T-1 weekIndex 连续覆盖
+ok    T-1 monthKey 升序  — 2026-09,2026-10
+ok    T-1 跨年 3 个月标签（03-01 是周日，当月无列）  — 2025-12,2026-01,2026-02
+ok    T-1 相邻同月已合并（无重复 monthKey）
+ok    T-1 对空 weeks 返回空
+ok    heatDatesOf 与 dates 等长
+ok    heatDatesOf 返回副本
+ok    heatMove 右移一天
+ok    heatMove 左移一天
+ok    heatMove 下移一周
+ok    heatMove 上移一周
+ok    heatMove Home 到首
+ok    heatMove End 到末
+ok    heatMove 左越界停在边界
+ok    heatMove 右越界停在边界
+ok    heatMove 上越界停在首格
+ok    heatMove 下越界停在边界
+ok    heatMove 未知键原样返回
+ok    heatMove 空序列原样返回
+ok    heatMove current 不在序列里 → 首
+
+OK (0 failure(s)) — 58 条断言
