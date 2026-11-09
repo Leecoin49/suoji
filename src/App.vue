@@ -9,6 +9,9 @@ import TaskRow from "@/components/TaskRow.vue";
 import CloseOutSheet from "@/components/CloseOutSheet.vue";
 import SettingsSheet from "@/components/SettingsSheet.vue";
 import HistorySheet from "@/components/HistorySheet.vue";
+import StatsSheet from "@/components/StatsSheet.vue";
+import ProjectSheet from "@/components/ProjectSheet.vue";
+import ClassSheet from "@/components/ClassSheet.vue";
 import HelpSheet from "@/components/HelpSheet.vue";
 import UpdateSheet from "@/components/UpdateSheet.vue";
 import { useDayStore } from "@/stores/day";
@@ -22,6 +25,8 @@ const capture = ref<InstanceType<typeof CaptureBar> | null>(null);
 const closeOutOpen = ref(false);
 const settingsOpen = ref(false);
 const historyOpen = ref(false);
+const statsOpen = ref(false);
+const projectsOpen = ref(false);
 const helpOpen = ref(false);
 const updateOpen = ref(false);
 const doneOpen = ref(true);
@@ -66,13 +71,36 @@ function openHistory() {
   settingsOpen.value = false;
   helpOpen.value = false;
   updateOpen.value = false;
+  statsOpen.value = false;
+  projectsOpen.value = false;
   historyOpen.value = true;
+}
+
+function openStats() {
+  closeOutOpen.value = false;
+  settingsOpen.value = false;
+  historyOpen.value = false;
+  helpOpen.value = false;
+  updateOpen.value = false;
+  projectsOpen.value = false;
+  statsOpen.value = true;
+}
+
+function openProjects() {
+  closeOutOpen.value = false;
+  settingsOpen.value = false;
+  historyOpen.value = false;
+  helpOpen.value = false;
+  updateOpen.value = false;
+  statsOpen.value = false;
+  projectsOpen.value = true;
 }
 
 function openUpdate() {
   closeOutOpen.value = false;
   settingsOpen.value = false;
   historyOpen.value = false;
+  statsOpen.value = false;
   helpOpen.value = false;
   updateOpen.value = true;
   if (updater.phase === "idle") void updater.checkNow();
@@ -83,6 +111,7 @@ const HELP_KEY = "suoji.helpSeen";
 function openHelp() {
   closeOutOpen.value = false;
   historyOpen.value = false;
+  statsOpen.value = false;
   settingsOpen.value = false;
   updateOpen.value = false;
   helpOpen.value = true;
@@ -106,7 +135,10 @@ function onKeydown(e: KeyboardEvent) {
     closeOutOpen.value = false;
     settingsOpen.value = false;
     historyOpen.value = false;
+    statsOpen.value = false;
+    projectsOpen.value = false;
     updateOpen.value = false;
+    if (store.classTask) store.closeClass();
     if (helpOpen.value) closeHelp();
   }
 }
@@ -115,6 +147,8 @@ async function boot() {
   await store.loadSettings();
   applyLocale(store.settings.locale);
   await store.refresh();
+  // Projects and tags are small; loading them once keeps every row's chips ready.
+  void store.loadClasses();
   const v = store.view;
   if (v && !v.closedOut && v.tasks.length > 0 && dayjs().hour() >= 18) {
     closeOutOpen.value = true;
@@ -150,6 +184,8 @@ onUnmounted(() => {
     <TitleBar
       @settings="settingsOpen = true"
       @history="openHistory"
+      @stats="openStats"
+      @projects="openProjects"
       @help="openHelp"
       @update="openUpdate"
     />
@@ -351,6 +387,9 @@ onUnmounted(() => {
 
       <CloseOutSheet v-if="closeOutOpen" @close="closeOutOpen = false" />
       <HistorySheet v-if="historyOpen" @close="historyOpen = false" />
+      <StatsSheet v-if="statsOpen" @close="statsOpen = false" />
+      <ProjectSheet v-if="projectsOpen" @close="projectsOpen = false" />
+      <ClassSheet v-if="store.classTask" @close="store.closeClass()" />
       <HelpSheet v-if="helpOpen" @close="closeHelp" />
       <UpdateSheet v-if="updateOpen" @close="updateOpen = false" />
       <SettingsSheet
@@ -361,7 +400,7 @@ onUnmounted(() => {
       />
     </main>
 
-    <div v-if="!closeOutOpen && !historyOpen && !helpOpen && !updateOpen" class="shrink-0 px-6">
+    <div v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !helpOpen && !updateOpen && !store.classTask" class="shrink-0 px-6">
       <button
         v-if="store.tab === 'today' && store.tasks.length"
         :class="
@@ -375,6 +414,9 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <CaptureBar v-if="!closeOutOpen && !historyOpen && !helpOpen && !updateOpen" ref="capture" />
+    <CaptureBar
+      v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !helpOpen && !updateOpen && !store.classTask"
+      ref="capture"
+    />
   </div>
 </template>

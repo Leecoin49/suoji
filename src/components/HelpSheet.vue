@@ -101,6 +101,19 @@ const kbd = "shrink-0 rounded-md border border-line bg-paper px-1.5 py-0.5 text-
         </ul>
       </section>
 
+      <!-- Review -->
+      <section class="mb-7">
+        <h3 class="mb-2 text-[11px] font-medium tracking-[0.14em] text-ink-faint">
+          {{ t("stats.title") }}
+        </h3>
+        <ul class="space-y-1.5 text-[12.5px] leading-6 text-ink-soft">
+          <li v-for="line in helpContent.stats" :key="line" class="flex gap-2">
+            <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent/60" />
+            <span>{{ line }}</span>
+          </li>
+        </ul>
+      </section>
+
       <!-- Data -->
       <section>
         <h3 class="mb-2 text-[11px] font-medium tracking-[0.14em] text-ink-faint">

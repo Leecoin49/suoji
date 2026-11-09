@@ -1,12 +1,16 @@
 use crate::db::{get_meta, set_meta, Db};
-use crate::model::{DayView, Settings, Task};
+use crate::model::{
+    Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectInput, RollEntry, Settings, StatsRaw, StatsSpan, Tag,
+    Task,
+};
 use chrono::{Duration, Local, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashMap;
 use tauri::{Manager, State};
 use uuid::Uuid;
 
 const SELECT: &str = "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-     roll_count, last_rolled_at, created_at, updated_at FROM tasks";
+     roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks";
 
 fn today() -> String {
     Local::now().format("%Y-%m-%d").to_string()
@@ -20,8 +24,37 @@ fn tomorrow() -> String {
     (Local::now().naive_local().date() + Duration::days(1)).format("%Y-%m-%d").to_string()
 }
 
+const INVALID_RANGE: &str = "stats: invalid range";
+
 fn load(conn: &Connection, id: &str) -> rusqlite::Result<Task> {
-    conn.query_row(&format!("{SELECT} WHERE id = ?1"), params![id], Task::from_row)
+    let mut task = conn.query_row(&format!("{SELECT} WHERE id = ?1"), params![id], Task::from_row)?;
+    attach_tags(conn, std::slice::from_mut(&mut task))?;
+    Ok(task)
+}
+
+/// All tag links, keyed by task. One query beats N+1 on a local database.
+fn tag_map(conn: &Connection) -> rusqlite::Result<HashMap<String, Vec<String>>> {
+    let mut stmt = conn.prepare("SELECT task_id, tag_id FROM task_tags ORDER BY tag_id ASC")?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    for row in rows {
+        let (task_id, tag_id) = row?;
+        map.entry(task_id).or_default().push(tag_id);
+    }
+    Ok(map)
+}
+
+fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> rusqlite::Result<()> {
+    if tasks.is_empty() {
+        return Ok(());
+    }
+    let map = tag_map(conn)?;
+    for task in tasks.iter_mut() {
+        if let Some(ids) = map.get(&task.id) {
+            task.tag_ids = ids.clone();
+        }
+    }
+    Ok(())
 }
 
 /// Roll anything unfinished from yesterday (or earlier) onto today.
@@ -48,23 +81,23 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
         "{SELECT} WHERE done = 0 AND deleted = 0 AND bucket = 'today' AND plan_date <= ?1 \
          ORDER BY (due_at IS NULL), due_at, created_at"
     ))?;
-    let tasks: Vec<Task> = stmt.query_map(params![day], Task::from_row)?.collect::<rusqlite::Result<_>>()?;
+    let mut tasks: Vec<Task> = stmt.query_map(params![day], Task::from_row)?.collect::<rusqlite::Result<_>>()?;
 
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-         roll_count, last_rolled_at, created_at, updated_at FROM tasks \
+         roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks \
          WHERE done = 1 AND deleted = 0 AND done_at LIKE ?1 ORDER BY done_at DESC",
     )?;
-    let done_today: Vec<Task> =
+    let mut done_today: Vec<Task> =
         stmt.query_map(params![format!("{day}%")], Task::from_row)?.collect::<rusqlite::Result<_>>()?;
 
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-         roll_count, last_rolled_at, created_at, updated_at FROM tasks \
+         roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks \
          WHERE done = 0 AND deleted = 0 AND bucket = 'inbox' \
          ORDER BY updated_at ASC LIMIT 3",
     )?;
-    let suggestions: Vec<Task> = stmt.query_map([], Task::from_row)?.collect::<rusqlite::Result<_>>()?;
+    let mut suggestions: Vec<Task> = stmt.query_map([], Task::from_row)?.collect::<rusqlite::Result<_>>()?;
 
     let inbox_count: i64 =
         conn.query_row("SELECT COUNT(*) FROM tasks WHERE done = 0 AND deleted = 0 AND bucket = 'inbox'", [], |r| {
@@ -78,9 +111,12 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
         .query_row("SELECT note FROM day_notes WHERE date < ?1 ORDER BY date DESC LIMIT 1", params![day], |r| r.get(0))
         .ok();
 
+    attach_tags(conn, &mut tasks)?;
+    attach_tags(conn, &mut done_today)?;
+    attach_tags(conn, &mut suggestions)?;
+
     Ok(DayView { date: day, tasks, done_today, suggestions, inbox_count, closed_out, yesterday_note })
 }
-
 // ---------------------------------------------------------------- commands
 
 #[tauri::command]
@@ -95,11 +131,12 @@ pub fn list_inbox(db: State<Db>) -> Result<Vec<Task>, String> {
     let mut stmt = conn
         .prepare(&format!("{SELECT} WHERE done = 0 AND deleted = 0 AND bucket = 'inbox' ORDER BY created_at DESC"))
         .map_err(|e| e.to_string())?;
-    let rows: Vec<Task> = stmt
+    let mut rows: Vec<Task> = stmt
         .query_map([], Task::from_row)
         .map_err(|e| e.to_string())?
         .collect::<rusqlite::Result<_>>()
         .map_err(|e| e.to_string())?;
+    attach_tags(&conn, &mut rows).map_err(|e| e.to_string())?;
     Ok(rows)
 }
 
@@ -154,12 +191,107 @@ pub fn list_done_history(db: State<Db>, days: i64) -> Result<Vec<Task>, String> 
              AND done_at >= ?1 ORDER BY done_at DESC"
         ))
         .map_err(|e| e.to_string())?;
-    let rows: Vec<Task> = stmt
+    let mut rows: Vec<Task> = stmt
         .query_map(params![since], Task::from_row)
         .map_err(|e| e.to_string())?
         .collect::<rusqlite::Result<_>>()
         .map_err(|e| e.to_string())?;
+    attach_tags(&conn, &mut rows).map_err(|e| e.to_string())?;
     Ok(rows)
+}
+
+/// Read-only review of `[start, end]`: what got done, what kept slipping.
+/// Five SELECTs, no transaction, no writes — see `contracts/ipc-get-stats.md` §5.
+#[tauri::command]
+pub fn get_stats(db: State<Db>, start: String, end: String) -> Result<StatsRaw, String> {
+    let start_date = NaiveDate::parse_from_str(&start, "%Y-%m-%d").map_err(|_| INVALID_RANGE.to_string())?;
+    let end_date = NaiveDate::parse_from_str(&end, "%Y-%m-%d").map_err(|_| INVALID_RANGE.to_string())?;
+    if start_date > end_date {
+        return Err(INVALID_RANGE.into());
+    }
+
+    // The panel never looks into the future; a range that starts there has nothing to show.
+    let today_date = Local::now().naive_local().date();
+    let clamped = end_date > today_date;
+    let end_date = end_date.min(today_date);
+    if start_date > end_date {
+        return Err(INVALID_RANGE.into());
+    }
+
+    let days = (end_date - start_date).num_days() + 1;
+    let prev_end = start_date - Duration::days(1);
+    let prev_start = prev_end - Duration::days(days - 1);
+    let fmt = |d: NaiveDate| d.format("%Y-%m-%d").to_string();
+    let span = StatsSpan { start: fmt(start_date), end: fmt(end_date), days };
+    let prev = StatsSpan { start: fmt(prev_start), end: fmt(prev_end), days };
+
+    let from = format!("{}T00:00:00", span.start);
+    let to = format!("{}T23:59:59", span.end);
+    let prev_from = format!("{}T00:00:00", prev.start);
+    let prev_to = format!("{}T23:59:59", prev.end);
+
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, note, done_at, project_id FROM tasks \
+             WHERE done = 1 AND deleted = 0 AND done_at IS NOT NULL \
+               AND done_at >= ?1 AND done_at <= ?2 \
+             ORDER BY done_at DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let tags = tag_map(&conn).map_err(|e| e.to_string())?;
+    let done: Vec<DoneEntry> = stmt
+        .query_map(params![from, to], |row| {
+            let id: String = row.get(0)?;
+            Ok(DoneEntry {
+                tag_ids: tags.get(&id).cloned().unwrap_or_default(),
+                id,
+                title: row.get(1)?,
+                note: row.get(2)?,
+                done_at: row.get(3)?,
+                project_id: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| e.to_string())?;
+
+    let prev_done: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks \
+             WHERE done = 1 AND deleted = 0 AND done_at IS NOT NULL \
+               AND done_at >= ?1 AND done_at <= ?2",
+            params![prev_from, prev_to],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, roll_count, last_rolled_at FROM tasks \
+             WHERE done = 0 AND deleted = 0 AND roll_count > 0 AND last_rolled_at IS NOT NULL \
+               AND last_rolled_at >= ?1 AND last_rolled_at <= ?2 \
+             ORDER BY roll_count DESC, last_rolled_at DESC, created_at ASC, id ASC LIMIT 5",
+        )
+        .map_err(|e| e.to_string())?;
+    let rolled: Vec<RollEntry> = stmt
+        .query_map(params![span.start, span.end], |row| {
+            Ok(RollEntry { id: row.get(0)?, title: row.get(1)?, roll_count: row.get(2)?, last_rolled_at: row.get(3)? })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| e.to_string())?;
+
+    let backlog: i64 = conn
+        .query_row("SELECT COUNT(*) FROM tasks WHERE done = 0 AND deleted = 0", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let undated: i64 = conn
+        .query_row("SELECT COUNT(*) FROM tasks WHERE done = 1 AND deleted = 0 AND done_at IS NULL", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+
+    Ok(StatsRaw { span, prev, done, prev_done, rolled, backlog, undated, clamped })
 }
 
 #[tauri::command]
@@ -330,6 +462,296 @@ pub fn show_main(app: &tauri::AppHandle) {
 #[tauri::command]
 pub fn data_path(app: tauri::AppHandle) -> String {
     app.path().app_data_dir().map(|dir| dir.join("suoji.db").to_string_lossy().to_string()).unwrap_or_default()
+}
+
+// ---------------------------------------------------------------- 005: projects & tags
+
+const PROJECT_NAME_MAX: usize = 20;
+const TAG_NAME_MAX: usize = 16;
+const TAGS_PER_TASK: usize = 10;
+const DUP: &str = "classes: duplicate name";
+
+/// Collapse whitespace and enforce the length the spec promises.
+fn clean_name(raw: &str, max: usize) -> Result<String, String> {
+    let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    if name.is_empty() {
+        return Err("classes: empty name".into());
+    }
+    if name.chars().count() > max {
+        return Err("classes: name too long".into());
+    }
+    Ok(name)
+}
+
+fn friendly(e: rusqlite::Error) -> String {
+    let text = e.to_string();
+    if text.contains("UNIQUE") {
+        DUP.into()
+    } else {
+        text
+    }
+}
+
+fn project_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
+    Ok(Project {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        archived: row.get::<_, i64>(2)? != 0,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
+}
+
+fn tag_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Tag> {
+    Ok(Tag { id: row.get(0)?, name: row.get(1)?, created_at: row.get(2)? })
+}
+
+/// Both dictionaries in one round trip.
+#[tauri::command]
+pub fn list_classes(db: State<Db>) -> Result<Classes, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, name, archived, created_at, updated_at FROM projects \
+             ORDER BY archived ASC, sort_order ASC, lower(name) ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let projects: Vec<Project> = stmt
+        .query_map([], project_from_row)
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt =
+        conn.prepare("SELECT id, name, created_at FROM tags ORDER BY lower(name) ASC").map_err(|e| e.to_string())?;
+    let tags: Vec<Tag> = stmt
+        .query_map([], tag_from_row)
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(Classes { projects, tags })
+}
+
+/// Create (no id) or rename / archive an existing project.
+#[tauri::command]
+pub fn save_project(db: State<Db>, project: ProjectInput) -> Result<Project, String> {
+    let name = clean_name(&project.name, PROJECT_NAME_MAX)?;
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let now = now_iso();
+
+    let id = match project.id.filter(|v| !v.is_empty()) {
+        Some(id) => {
+            let archived = project.archived.map(|a| a as i64);
+            let changed = conn
+                .execute(
+                    "UPDATE projects SET name = ?2, archived = COALESCE(?3, archived), updated_at = ?4 \
+                     WHERE id = ?1",
+                    params![id, name, archived, now],
+                )
+                .map_err(friendly)?;
+            if changed == 0 {
+                return Err("classes: no such project".into());
+            }
+            id
+        }
+        None => {
+            let id = Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO projects(id, name, archived, sort_order, created_at, updated_at) \
+                 VALUES(?1, ?2, COALESCE(?3, 0), 0, ?4, ?4)",
+                params![id, name, project.archived.map(|a| a as i64), now],
+            )
+            .map_err(friendly)?;
+            id
+        }
+    };
+
+    conn.query_row(
+        "SELECT id, name, archived, created_at, updated_at FROM projects WHERE id = ?1",
+        params![id],
+        project_from_row,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Put a task into a project (or clear it with `null`).
+#[tauri::command]
+pub fn set_task_project(db: State<Db>, task_id: String, project_id: Option<String>) -> Result<Task, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let project_id = project_id.filter(|v| !v.is_empty());
+    if let Some(pid) = &project_id {
+        let exists: bool = conn
+            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![pid], |r| r.get::<_, i64>(0))
+            .optional()
+            .map_err(|e| e.to_string())?
+            .is_some();
+        if !exists {
+            return Err("classes: no such project".into());
+        }
+    }
+    conn.execute(
+        "UPDATE tasks SET project_id = ?2, updated_at = ?3 WHERE id = ?1",
+        params![task_id, project_id, now_iso()],
+    )
+    .map_err(|e| e.to_string())?;
+    load(&conn, &task_id).map_err(|e| e.to_string())
+}
+
+/// Find a tag by name or create it — typing a new tag while assigning is the common path.
+#[tauri::command]
+pub fn save_tag(db: State<Db>, name: String) -> Result<Tag, String> {
+    let name = clean_name(&name, TAG_NAME_MAX)?;
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    if let Some(tag) = conn
+        .query_row(
+            "SELECT id, name, created_at FROM tags WHERE lower(trim(name)) = lower(?1)",
+            params![name],
+            tag_from_row,
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+    {
+        return Ok(tag);
+    }
+
+    let id = Uuid::new_v4().to_string();
+    conn.execute("INSERT INTO tags(id, name, created_at) VALUES(?1, ?2, ?3)", params![id, name, now_iso()])
+        .map_err(friendly)?;
+    Ok(Tag { id, name, created_at: now_iso() })
+}
+
+/// Remove a tag and every link to it, in one transaction.
+#[tauri::command]
+pub fn delete_tag(db: State<Db>, id: String) -> Result<(), String> {
+    let mut conn = db.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM task_tags WHERE tag_id = ?1", params![id]).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM tags WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Replace a task's tags wholesale (deduped, capped, unknown ids dropped).
+#[tauri::command]
+pub fn set_task_tags(db: State<Db>, task_id: String, tag_ids: Vec<String>) -> Result<Task, String> {
+    let mut unique: Vec<String> = Vec::new();
+    for id in tag_ids {
+        if !id.is_empty() && !unique.contains(&id) {
+            unique.push(id);
+        }
+    }
+    if unique.len() > TAGS_PER_TASK {
+        return Err(format!("classes: at most {TAGS_PER_TASK} tags per task"));
+    }
+
+    let mut conn = db.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM task_tags WHERE task_id = ?1", params![task_id]).map_err(|e| e.to_string())?;
+    for tag_id in &unique {
+        tx.execute(
+            "INSERT OR IGNORE INTO task_tags(task_id, tag_id) SELECT ?1, id FROM tags WHERE id = ?2",
+            params![task_id, tag_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    load(&conn, &task_id).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------- 006: node chains
+
+const NODE_TITLE_MAX: usize = 60;
+
+fn nodes_of(conn: &Connection, project_id: &str) -> rusqlite::Result<Vec<Node>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, title, note, done, sort_order, created_at, updated_at FROM nodes \
+         WHERE project_id = ?1 ORDER BY sort_order ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map(params![project_id], Node::from_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// The ordered chain of steps inside one project.
+#[tauri::command]
+pub fn list_nodes(db: State<Db>, project_id: String) -> Result<Vec<Node>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    nodes_of(&conn, &project_id).map_err(|e| e.to_string())
+}
+
+/// Add a step to the end of the chain, or rename / renote an existing one.
+#[tauri::command]
+pub fn save_node(db: State<Db>, node: NodeInput) -> Result<Vec<Node>, String> {
+    let title = node.title.split_whitespace().collect::<Vec<_>>().join(" ");
+    if title.is_empty() {
+        return Err("nodes: empty title".into());
+    }
+    if title.chars().count() > NODE_TITLE_MAX {
+        return Err("nodes: title too long".into());
+    }
+
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let now = now_iso();
+
+    match node.id.filter(|v| !v.is_empty()) {
+        Some(id) => {
+            conn.execute(
+                "UPDATE nodes SET title = ?2, note = ?3, updated_at = ?4 WHERE id = ?1",
+                params![id, title, node.note, now],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        None => {
+            let next: i64 = conn
+                .query_row(
+                    "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nodes WHERE project_id = ?1",
+                    params![node.project_id],
+                    |r| r.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "INSERT INTO nodes(id, project_id, title, note, done, sort_order, created_at, updated_at) \
+                 VALUES(?1, ?2, ?3, ?4, 0, ?5, ?6, ?6)",
+                params![Uuid::new_v4().to_string(), node.project_id, title, node.note, next, now],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    nodes_of(&conn, &node.project_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_node(db: State<Db>, id: String) -> Result<Vec<Node>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let project_id: String = conn
+        .query_row("SELECT project_id FROM nodes WHERE id = ?1", params![id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM nodes WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    nodes_of(&conn, &project_id).map_err(|e| e.to_string())
+}
+
+/// Tick a step: the next open one becomes "current" on its own (no extra state).
+#[tauri::command]
+pub fn complete_node(db: State<Db>, id: String) -> Result<Vec<Node>, String> {
+    set_node_done(&db, &id, true)
+}
+
+#[tauri::command]
+pub fn reopen_node(db: State<Db>, id: String) -> Result<Vec<Node>, String> {
+    set_node_done(&db, &id, false)
+}
+
+fn set_node_done(db: &State<Db>, id: &str, done: bool) -> Result<Vec<Node>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let project_id: String = conn
+        .query_row("SELECT project_id FROM nodes WHERE id = ?1", params![id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.execute("UPDATE nodes SET done = ?2, updated_at = ?3 WHERE id = ?1", params![id, done as i64, now_iso()])
+        .map_err(|e| e.to_string())?;
+    nodes_of(&conn, &project_id).map_err(|e| e.to_string())
 }
 
 /// Count today's open tasks (kept for completeness).

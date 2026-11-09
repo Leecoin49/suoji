@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { CircleHelp, Download, History, Minus, Settings2, X } from "lucide-vue-next";
+import { BarChart3, CircleHelp, Download, FolderTree, History, Minus, Settings2, X } from "lucide-vue-next";
 import { t } from "@/lib/i18n";
 import { useUpdateStore } from "@/stores/update";
 
@@ -9,6 +9,8 @@ const update = useUpdateStore();
 const emit = defineEmits<{
   (e: "settings"): void;
   (e: "history"): void;
+  (e: "stats"): void;
+  (e: "projects"): void;
   (e: "help"): void;
   (e: "update"): void;
 }>();
@@ -27,6 +29,12 @@ const btn =
     <div class="flex items-center gap-0.5">
       <button :class="btn" :title="t('nav.history')" @click="emit('history')">
         <History :size="14" :stroke-width="1.8" />
+      </button>
+      <button :class="btn" :title="t('nav.stats')" @click="emit('stats')">
+        <BarChart3 :size="14" :stroke-width="1.8" />
+      </button>
+      <button :class="btn" :title="t('nav.projects')" @click="emit('projects')">
+        <FolderTree :size="14" :stroke-width="1.8" />
       </button>
       <button :class="btn" :title="t('nav.help')" @click="emit('help')">
         <CircleHelp :size="14" :stroke-width="1.8" />

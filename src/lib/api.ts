@@ -14,6 +14,44 @@ export interface Task {
   lastRolledAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Which project it belongs to; `null` means 未分类. */
+  projectId: string | null;
+  /** Tags on it — empty when the caller did not load them. */
+  tagIds: string[];
+}
+
+/** A bucket of related work. One level deep on purpose (spec 005 D1). */
+export interface Project {
+  id: string;
+  name: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A free-form label; several may sit on one task. */
+export interface Tag {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+/** Both dictionaries in one round trip. */
+export interface Classes {
+  projects: Project[];
+  tags: Tag[];
+}
+
+/** One step in a project's chain (spec 006). */
+export interface Node {
+  id: string;
+  projectId: string;
+  title: string;
+  note: string | null;
+  done: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DayView {
@@ -36,10 +74,62 @@ export interface Settings {
   locale: Locale;
 }
 
+export interface StatsSpan {
+  start: string;
+  end: string;
+  days: number;
+}
+
+export interface DoneEntry {
+  id: string;
+  title: string;
+  note: string | null;
+  /** Local time without a timezone suffix, exactly as stored. */
+  doneAt: string;
+  /** Current home of the task (no historical snapshot). */
+  projectId: string | null;
+  tagIds: string[];
+}
+
+export interface RollEntry {
+  id: string;
+  title: string;
+  /** Cumulative — may include pushes from before the interval. */
+  rollCount: number;
+  /** Plain date (YYYY-MM-DD), not a timestamp. */
+  lastRolledAt: string;
+}
+
+export interface StatsRaw {
+  span: StatsSpan;
+  prev: StatsSpan;
+  done: DoneEntry[];
+  prevDone: number;
+  rolled: RollEntry[];
+  backlog: number;
+  undated: number;
+  clamped: boolean;
+}
+
 export const api = {
   getDay: () => invoke<DayView>("get_day"),
   listInbox: () => invoke<Task[]>("list_inbox"),
   listDoneHistory: (days = 30) => invoke<Task[]>("list_done_history", { days }),
+  getStats: (start: string, end: string) => invoke<StatsRaw>("get_stats", { start, end }),
+  listClasses: () => invoke<Classes>("list_classes"),
+  saveProject: (project: { id?: string | null; name: string; archived?: boolean | null }) =>
+    invoke<Project>("save_project", { project }),
+  setTaskProject: (taskId: string, projectId: string | null) =>
+    invoke<Task>("set_task_project", { taskId, projectId }),
+  saveTag: (name: string) => invoke<Tag>("save_tag", { name }),
+  deleteTag: (id: string) => invoke<void>("delete_tag", { id }),
+  setTaskTags: (taskId: string, tagIds: string[]) => invoke<Task>("set_task_tags", { taskId, tagIds }),
+  listNodes: (projectId: string) => invoke<Node[]>("list_nodes", { projectId }),
+  saveNode: (node: { id?: string | null; projectId: string; title: string; note?: string | null }) =>
+    invoke<Node[]>("save_node", { node }),
+  deleteNode: (id: string) => invoke<Node[]>("delete_node", { id }),
+  completeNode: (id: string) => invoke<Node[]>("complete_node", { id }),
+  reopenNode: (id: string) => invoke<Node[]>("reopen_node", { id }),
   addTask: (title: string, target?: string, dueAt?: string | null) =>
     invoke<Task>("add_task", { title, target, dueAt: dueAt ?? null }),
   setDone: (id: string, done: boolean, note?: string | null) =>

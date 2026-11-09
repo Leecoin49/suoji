@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { Check, Inbox, Sunrise, Trash2 } from "lucide-vue-next";
+import { Check, Inbox, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
 import type { Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
 import { heldDays, timeLabel } from "@/lib/utils";
@@ -27,6 +27,16 @@ async function commitNote() {
 }
 
 const days = computed(() => heldDays(props.task));
+
+/** Chips are cheap, but three is enough on a row. */
+const project = computed(() => store.projects.find((p) => p.id === props.task.projectId) ?? null);
+const tagNames = computed(() =>
+  (props.task.tagIds ?? [])
+    .map((id) => store.tags.find((x) => x.id === id)?.name)
+    .filter((name): name is string => Boolean(name)),
+);
+const shownTags = computed(() => tagNames.value.slice(0, 3));
+const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.value.length));
 </script>
 
 <template>
@@ -58,6 +68,37 @@ const days = computed(() => heldDays(props.task));
         >
           {{ task.title }}
         </p>
+      </div>
+
+      <!-- Where it belongs (spec 005): project + tags, one click opens the sheet -->
+      <div
+        v-if="project || tagNames.length"
+        class="mt-1 flex flex-wrap items-center gap-1"
+      >
+        <button
+          v-if="project"
+          class="max-w-[140px] truncate rounded-full bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent transition-colors hover:bg-accent/20"
+          :title="t('stats.projectLabel')"
+          @click="store.openClass(task)"
+        >
+          {{ project.name }}
+        </button>
+        <button
+          v-for="name in shownTags"
+          :key="name"
+          class="max-w-[110px] truncate rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint transition-colors hover:text-ink-soft"
+          :title="t('stats.tagLabel')"
+          @click="store.openClass(task)"
+        >
+          {{ name }}
+        </button>
+        <button
+          v-if="moreTags"
+          class="rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint hover:text-ink-soft"
+          @click="store.openClass(task)"
+        >
+          +{{ moreTags }}
+        </button>
       </div>
 
       <!-- Note: where did it get to -->
@@ -104,6 +145,13 @@ const days = computed(() => heldDays(props.task));
         {{ t("task.badge.rolled", { n: task.rollCount }) }}
       </span>
       <div v-if="showActions !== false" class="hidden items-center gap-0.5 group-hover:flex">
+        <button
+          class="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink"
+          :title="t('stats.assign')"
+          @click="store.openClass(task)"
+        >
+          <TagIcon :size="13" :stroke-width="1.9" />
+        </button>
         <button
           class="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink"
           :title="t('task.act.tomorrow')"

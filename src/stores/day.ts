@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api, type DayView, type Locale, type Settings, type Task } from "@/lib/api";
+import { api, type DayView, type Locale, type Project, type Settings, type Tag, type Task } from "@/lib/api";
 import { todayStr } from "@/lib/utils";
 import { applyLocale } from "@/lib/i18n";
 
@@ -18,6 +18,11 @@ export const useDayStore = defineStore("day", () => {
   const busy = ref(false);
   const history = ref<Task[]>([]);
   const historyDays = ref(30);
+  const projects = ref<Project[]>([]);
+  const tags = ref<Tag[]>([]);
+  /** The task whose 归类 sheet is open; `null` keeps it closed. */
+  const classTask = ref<Task | null>(null);
+  let classesLoaded = false;
 
   const tasks = computed(() => view.value?.tasks ?? []);
   const doneToday = computed(() => view.value?.doneToday ?? []);
@@ -36,6 +41,55 @@ export const useDayStore = defineStore("day", () => {
   async function loadHistory(days = historyDays.value) {
     historyDays.value = days;
     history.value = await api.listDoneHistory(days);
+  }
+
+  /** Projects and tags are read once per session and refreshed after every edit. */
+  async function loadClasses(force = false) {
+    if (classesLoaded && !force) return;
+    const both = await api.listClasses();
+    projects.value = both.projects;
+    tags.value = both.tags;
+    classesLoaded = true;
+  }
+
+  async function saveProject(name: string, id?: string | null, archived?: boolean | null) {
+    const saved = await api.saveProject({ id: id ?? null, name, archived: archived ?? null });
+    await loadClasses(true);
+    return saved;
+  }
+
+  async function saveTag(name: string) {
+    const saved = await api.saveTag(name);
+    await loadClasses(true);
+    return saved;
+  }
+
+  async function removeTag(id: string) {
+    await api.deleteTag(id);
+    await loadClasses(true);
+    await refresh();
+  }
+
+  async function setTaskProject(taskId: string, projectId: string | null) {
+    const updated = await api.setTaskProject(taskId, projectId);
+    if (classTask.value?.id === taskId) classTask.value = updated;
+    await refresh();
+    return updated;
+  }
+
+  async function setTaskTags(taskId: string, tagIds: string[]) {
+    const updated = await api.setTaskTags(taskId, tagIds);
+    if (classTask.value?.id === taskId) classTask.value = updated;
+    await refresh();
+    return updated;
+  }
+
+  function openClass(task: Task) {
+    classTask.value = task;
+  }
+
+  function closeClass() {
+    classTask.value = null;
   }
 
   async function add(title: string, target?: string, dueAt?: string | null) {
@@ -113,6 +167,9 @@ export const useDayStore = defineStore("day", () => {
     busy,
     history,
     historyDays,
+    projects,
+    tags,
+    classTask,
     tasks,
     doneToday,
     suggestions,
@@ -120,6 +177,14 @@ export const useDayStore = defineStore("day", () => {
     refresh,
     loadInbox,
     loadHistory,
+    loadClasses,
+    saveProject,
+    saveTag,
+    removeTag,
+    setTaskProject,
+    setTaskTags,
+    openClass,
+    closeClass,
     add,
     toggle,
     tomorrow,

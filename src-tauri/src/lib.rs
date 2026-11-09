@@ -122,6 +122,18 @@ pub fn run() {
             commands::set_locale,
             commands::show_window,
             commands::data_path,
+            commands::get_stats,
+            commands::list_classes,
+            commands::save_project,
+            commands::set_task_project,
+            commands::save_tag,
+            commands::delete_tag,
+            commands::set_task_tags,
+            commands::list_nodes,
+            commands::save_node,
+            commands::delete_node,
+            commands::complete_node,
+            commands::reopen_node,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

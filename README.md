@@ -80,6 +80,52 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
   completion time, notes, and how many times it had been pushed.
 - Ticked by mistake? Send it back to today in one click.
 
+### Look back on a stretch
+
+- The panel opens with one sentence: how many you finished, whether that is more or
+  less than the stretch before, the busiest day, and how many days had nothing at all.
+- Below it a chart you can actually read: for windows up to 90 days it is a calendar
+  heatmap (one column per week, one row per weekday, five shades of the accent colour,
+  a ring on today and a dot on the busiest day); longer windows and the weekly/monthly
+  buckets keep the vertical bars with a zero baseline, a dashed half tick and a hover
+  tooltip. Click a cell or a bar to keep only that slice.
+- Four equal-width cards sit under the sentence — average per day, current streak,
+  change against the previous stretch, and the backlog (the only live number, marked
+  as such); a value with no basis shows an em dash instead of a fake zero.
+- Switching the range fades the new numbers in over 150 ms without moving anything, and
+  the fade disappears entirely when the system asks for reduced motion.
+- The details are grouped by day and folded five days at a time, the counting rules sit
+  in a footnote you can expand, and the whole panel works from the keyboard (arrows move
+  between bars or days, Enter drills in, Tab never gets lost in the chart).
+- The average per day, the longest streak, which items kept getting pushed back
+  (accumulated count plus the latest push date), the open backlog right now, and the
+  comparison with the previous stretch all still sit under the conclusion.
+- Read-only: opening it writes nothing, keeps no snapshots, never pretends to
+  reconstruct what your backlog looked like on some past day, and never gives a row
+  without a completion time a made-up date.
+- Ranges beyond 7 / 30 / 90 days: this month, this quarter, this year — plus a custom
+  start/end pair that applies as you type.
+- The **by project / by tag** card answers "where did the time go": one share bar, one
+  count and one percentage per row; clicking a row narrows the detail list to that class
+  (stacked on the date range), clicking it again clears it. A task with two tags counts
+  once under each, so tag rows can sum to more than the total — that is the tag rule,
+  not a bug.
+
+### Projects, tags and progress
+
+- A **project** is the big bucket (the important thing / internal chores / joint work…);
+  a **tag** is the kind of work (drafting, chasing quotes, meetings…). One project per
+  task, up to 10 tags; project names up to 20 characters, tag names up to 16.
+- Filing takes one click: hover a task for **File**, or click the project/tag chips on
+  the row itself.
+- **Project flow** (the folder icon in the title bar) is a vertical chain of steps: tick
+  one and it fades and strikes through, the next becomes **Now**; click a title to rename
+  it in place, append at the bottom, reopen anything you ticked by mistake.
+- The chain is linear on purpose — no dragging, no columns, no subtask tree. It answers
+  exactly one question: what is next.
+- Archiving a project only greys it out; deleting a tag also unhooks it from tasks; a
+  project can be archived but not deleted.
+
 ### Bilingual, built in
 
 - The whole UI ships in **English and Chinese**; switch it in Settings, the tray
@@ -229,10 +275,11 @@ in a click), and no task content is ever part of it.
 
 ```
 src/                    Vue frontend
-  components/           TitleBar, CaptureBar, TaskRow + close-out/history/help/settings/update sheets
+  components/           TitleBar, CaptureBar, TaskRow + close-out/history/stats/help/settings/update sheets
   lib/api.ts            typed wrappers around every Tauri command
   lib/i18n.ts           every user-visible string, zh + en
   lib/parse.ts          the one-line syntax parser
+  lib/stats.ts          pure rules for the review panel: buckets, conclusion, chart axis, day groups
   stores/day.ts         Pinia store
   stores/update.ts      update center state: check, download, install, skip
 src-tauri/src/

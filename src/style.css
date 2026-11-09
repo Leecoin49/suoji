@@ -109,3 +109,29 @@
 .sheet-up {
   animation: sheet-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* 004-stats-visual：区间切换时只淡入，不动布局（FR-014）。
+   150ms 是上限内的一半：足够被看见，又不会让连点叠动画。 */
+@keyframes fade-swap {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-swap {
+  animation: fade-swap 150ms ease-out both;
+}
+
+/* 系统开了「减少动态效果」就把时长归零：只留终点状态，不演过程（FR-015）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
