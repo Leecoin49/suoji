@@ -111,6 +111,14 @@ delete or rewrite existing rows.
 There is no test harness yet. Until there is, every PR must state how it was
 verified: commands run, steps clicked, and a screenshot for UI changes.
 
+Anything beyond a typo goes through the spec flow in `AGENTS.md`: a
+`specs/<NNN>-<slug>/spec.md` that says what must **not** change, then code. Before
+opening a PR, run the gate (Windows has no `make`, so call the script):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/speckit/gate.ps1
+```
+
 ### Docs
 
 Behaviour changes update three places: `README.md`, `README.zh-CN.md`, and the

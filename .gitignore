@@ -4,9 +4,18 @@ src-tauri/target/
 src-tauri/gen/schemas/
 *.local
 .DS_Store
-.pi/
+# Pi local state. The speckit command prompts in .pi/prompts/ are project
+# tooling and stay tracked; task logs and credentials do not.
+.pi/tasks/
+.pi/*.log
+.pi/credentials.json
 # updater signing keys never belong in the repository
 .keys/
 *.key
 *.key.pub
 unsigned.conf.json
+
+# scratch scripts and build output from local verification
+.pi/*.py
+.pi/*.mjs
+.pi/tmp/

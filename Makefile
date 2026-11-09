@@ -4,7 +4,7 @@ PNPM ?= pnpm
 CARGO ?= cargo
 TAURI_DEV_PORT ?= 1420
 
-.PHONY: help install dev dev-web build check check-web check-rust fmt package clean
+.PHONY: help install dev dev-web build check check-web check-rust fmt package clean speckit-gate speckit-i18n speckit-new
 
 help:
 	@printf '%s\n' 'SuoJi development targets:'
@@ -22,6 +22,11 @@ help:
 	@printf '  %-18s %s\n' 'make check-web' 'vue-tsc type check'
 	@printf '  %-18s %s\n' 'make check-rust' 'cargo fmt --check + clippy -D warnings'
 	@printf '  %-18s %s\n' 'make fmt' 'Format Rust sources'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Spec Kit (SDD):'
+	@printf '  %-18s %s\n' 'make speckit-gate' 'Run the C001-C010 spec gate (exit 1 on failure)'
+	@printf '  %-18s %s\n' 'make speckit-i18n' 'Check zh/en i18n parity (constitution V)'
+	@printf '  %-18s %s\n' 'make speckit-new' 'Scaffold a feature: make speckit-new SHORT=my-feature DESC="..."'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Setup:'
 	@printf '  %-18s %s\n' 'make install' 'Install frontend dependencies'
@@ -55,3 +60,21 @@ package:
 
 clean:
 	$(CARGO) clean --manifest-path src-tauri/Cargo.toml
+
+# --- Spec Kit / SDD ---------------------------------------------------------
+# Windows has no make; run the same scripts directly:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/speckit/gate.ps1
+
+PWSH ?= powershell -NoProfile -ExecutionPolicy Bypass -File
+SHORT ?=
+DESC ?=
+
+speckit-gate:
+	$(PWSH) scripts/speckit/gate.ps1
+
+speckit-i18n:
+	$(PWSH) scripts/speckit/check-i18n.ps1
+
+speckit-new:
+	@if [ -z "$(SHORT)" ]; then echo 'usage: make speckit-new SHORT=my-feature DESC="what to build"'; exit 1; fi
+	$(PWSH) scripts/speckit/new-feature.ps1 -ShortName '$(SHORT)' '$(DESC)'

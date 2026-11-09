@@ -100,6 +100,14 @@ scripts/                 图标生成，以及生成文档截图用的脚本
 目前还没有测试框架。在此之前，PR 必须说明验证方式：跑了什么命令、点了哪些步骤；
 涉及 UI 的必须附截图。
 
+超出 typo 级别的改动要走 `AGENTS.md` 里的规格流程：先有一份写明**不许变什么**的
+`specs/<NNN>-<slug>/spec.md`，再动代码。提 PR 之前跑闸门（Windows 没有 `make`，
+直接调脚本）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/speckit/gate.ps1
+```
+
 ### 文档
 
 用户可见的行为变化要同时更新三处：`README.md`、`README.zh-CN.md`，以及应用内帮助
