@@ -1,7 +1,7 @@
 {
   "name": "suoji",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.1.22",
   "type": "module",
   "packageManager": "pnpm@8.15.9",
   "description": "Suoji - capture small things fast; the day sorts itself out",

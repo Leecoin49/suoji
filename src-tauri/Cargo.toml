@@ -1,6 +1,6 @@
 [package]
 name = "suoji"
-version = "0.1.21"
+version = "0.1.22"
 description = "Suoji - capture small things fast; the day sorts itself out"
 authors = ["suoji"]
 edition = "2021"
