@@ -118,7 +118,8 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
   task, up to 10 tags; project names up to 20 characters, tag names up to 16.
 - Filing takes one click: hover a task for **File**, or click the project/tag chips on
   the row itself. When capturing, the project chip left of the input does it up front —
-  pick it once and the next line lands in that project.
+  pick it once and the next line lands in that project; if it does not exist yet, use
+  **New project** at the bottom of the picker and it is created and selected in one go.
 - **Project flow** (the folder icon in the title bar) is a vertical chain of steps: tick
   one and it fades and strikes through, the next becomes **Now**; click a title to rename
   it in place, append at the bottom, reopen anything you ticked by mistake.

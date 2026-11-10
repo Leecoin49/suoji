@@ -1,6 +1,7 @@
-<script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+﻿<script setup lang="ts">
+import { computed, nextTick, onMounted, ref } from "vue";
 import { CornerDownLeft, FolderTree, Plus } from "lucide-vue-next";
+import { PROJECT_NAME_MAX, normalizeName } from "@/lib/classes";
 import dayjs from "dayjs";
 import { parseCapture } from "@/lib/parse";
 import { useDayStore } from "@/stores/day";
@@ -11,6 +12,13 @@ const inputEl = ref<HTMLInputElement | null>(null);
 const text = ref("");
 const focused = ref(false);
 const pickerOpen = ref(false);
+const creating = ref(false);
+const newName = ref("");
+const nameErr = ref("");
+let nameInput: HTMLInputElement | null = null;
+const grabName = (el: unknown) => {
+  nameInput = (el as HTMLInputElement | null) ?? null;
+};
 
 const captureProject = computed(() => store.projects.find((p) => p.id === store.captureProjectId) ?? null);
 
@@ -55,10 +63,59 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
+function togglePicker() {
+  pickerOpen.value = !pickerOpen.value;
+  if (!pickerOpen.value) {
+    creating.value = false;
+    newName.value = "";
+    nameErr.value = "";
+  }
+}
+
 function pickProject(id: string | null) {
   store.setCaptureProject(id);
   pickerOpen.value = false;
+  creating.value = false;
   inputEl.value?.focus();
+}
+
+function startCreate() {
+  creating.value = true;
+  nameErr.value = "";
+  void nextTick(() => nameInput?.focus());
+}
+
+function cancelCreate() {
+  creating.value = false;
+  newName.value = "";
+  nameErr.value = "";
+}
+
+/** Creating from the capture bar selects the new project straight away. */
+async function commitCreate() {
+  nameErr.value = "";
+  const name = newName.value.trim();
+  if (!name) {
+    nameErr.value = t("stats.nameEmpty");
+    return;
+  }
+  if (name.length > PROJECT_NAME_MAX) {
+    nameErr.value = t("stats.nameTooLong", { n: PROJECT_NAME_MAX });
+    return;
+  }
+  if (store.projects.some((p) => normalizeName(p.name) === normalizeName(name))) {
+    nameErr.value = t("stats.nameTaken");
+    return;
+  }
+  try {
+    const saved = await store.saveProject(name);
+    store.setCaptureProject(saved.id);
+    cancelCreate();
+    pickerOpen.value = false;
+    inputEl.value?.focus();
+  } catch (err) {
+    nameErr.value = String(err);
+  }
 }
 
 function focus() {
@@ -70,7 +127,7 @@ defineExpose({ focus });
 
 <template>
   <div class="shrink-0 px-6 pb-5 pt-2">
-    <div v-if="pickerOpen" class="fixed inset-0 z-20" @click="pickerOpen = false" />
+    <div v-if="pickerOpen" class="fixed inset-0 z-20" @click="togglePicker()" />
     <div
       class="relative flex items-center gap-2.5 rounded-2xl border bg-card px-4 py-2.5 transition-all duration-200"
       :class="
@@ -92,7 +149,7 @@ defineExpose({ focus });
               : 'text-ink-faint hover:bg-paper-deep hover:text-ink-soft'
           "
           :title="captureProject ? captureProject.name : t('capture.projectNone')"
-          @click.stop="pickerOpen = !pickerOpen"
+          @click.stop="togglePicker()"
         >
           <FolderTree :size="11" :stroke-width="2" class="shrink-0" />
           <span class="truncate">{{ captureProject?.name ?? t("capture.project") }}</span>
@@ -126,6 +183,32 @@ defineExpose({ focus });
             <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
             <span v-if="p.archived" class="shrink-0 text-[10px] text-ink-faint">·</span>
           </button>
+
+          <div class="my-1 h-px bg-line-soft" />
+
+          <button
+            v-if="!creating"
+            class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-faint transition-colors hover:bg-paper-deep hover:text-accent"
+            @click="startCreate()"
+          >
+            <Plus :size="11" :stroke-width="2.2" class="shrink-0" />
+            {{ t("capture.newProject") }}
+          </button>
+
+          <div v-else class="px-1 pb-1 pt-0.5">
+            <input
+              :ref="grabName"
+              v-model="newName"
+              maxlength="40"
+              class="w-full rounded-lg border border-line bg-paper px-2 py-1 text-[12px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent/45"
+              :placeholder="t('stats.newProject')"
+              spellcheck="false"
+              @keydown.enter.prevent="commitCreate()"
+              @keydown.esc.stop.prevent="cancelCreate()"
+            />
+            <p v-if="nameErr" class="mt-1 px-0.5 text-[10.5px] leading-4 text-warn">{{ nameErr }}</p>
+            <p v-else class="mt-1 px-0.5 text-[10px] leading-4 text-ink-faint">{{ t("capture.createHint") }}</p>
+          </div>
         </div>
       </div>
       <input
@@ -154,3 +237,4 @@ defineExpose({ focus });
     </div>
   </div>
 </template>
+
