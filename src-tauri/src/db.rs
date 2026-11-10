@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 pub struct Db(pub Mutex<Connection>);
 
 /// Bumped whenever `migrate` has real work to do. `0` = the schema shipped before 005.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS tasks (
@@ -125,6 +125,10 @@ fn migrate(conn: &Connection, path: &std::path::Path) -> rusqlite::Result<()> {
         if !has_column(conn, "tasks", "project_id")? {
             conn.execute("ALTER TABLE tasks ADD COLUMN project_id TEXT", [])?;
         }
+        if !has_column(conn, "tasks", "node_id")? {
+            conn.execute("ALTER TABLE tasks ADD COLUMN node_id TEXT", [])?;
+        }
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_tasks_node ON tasks(node_id)")?;
         conn.execute(
             "INSERT INTO meta(key, value) VALUES('schema_version', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",

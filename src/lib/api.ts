@@ -16,6 +16,8 @@ export interface Task {
   updatedAt: string;
   /** Which project it belongs to; `null` means 未分类. */
   projectId: string | null;
+  /** Step inside that project; `null` means the project itself. */
+  nodeId: string | null;
   /** Tags on it — empty when the caller did not load them. */
   tagIds: string[];
 }
@@ -130,6 +132,7 @@ export const api = {
   deleteProject: (id: string) => invoke<Project[]>("delete_project", { id }),
   setTaskProject: (taskId: string, projectId: string | null) =>
     invoke<Task>("set_task_project", { taskId, projectId }),
+  setTaskNode: (taskId: string, nodeId: string | null) => invoke<Task>("set_task_node", { taskId, nodeId }),
   saveTag: (name: string) => invoke<Tag>("save_tag", { name }),
   deleteTag: (id: string) => invoke<void>("delete_tag", { id }),
   setTaskTags: (taskId: string, tagIds: string[]) => invoke<Task>("set_task_tags", { taskId, tagIds }),

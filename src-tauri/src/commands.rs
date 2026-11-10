@@ -10,7 +10,7 @@ use tauri::{Manager, State};
 use uuid::Uuid;
 
 const SELECT: &str = "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-     roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks";
+     roll_count, last_rolled_at, created_at, updated_at, project_id, node_id FROM tasks";
 
 fn today() -> String {
     Local::now().format("%Y-%m-%d").to_string()
@@ -651,6 +651,36 @@ pub fn set_task_project(db: State<Db>, task_id: String, project_id: Option<Strin
     load(&conn, &task_id).map_err(|e| e.to_string())
 }
 
+/// Hang a task under one step of its project, or back to the project itself.
+#[tauri::command]
+pub fn set_task_node(db: State<Db>, task_id: String, node_id: Option<String>) -> Result<Task, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let node_id = node_id.filter(|v| !v.is_empty());
+    if let Some(nid) = &node_id {
+        let project: Option<String> = conn
+            .query_row("SELECT project_id FROM nodes WHERE id = ?1", params![nid], |r| r.get(0))
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let Some(project) = project else {
+            return Err("nodes: no such step".into());
+        };
+        // A task only lives in the project that owns its step; filing it there keeps
+        // 「按项目」 and 「按步骤」 from disagreeing (spec 007, FR-005).
+        conn.execute(
+            "UPDATE tasks SET node_id = ?2, project_id = ?3, updated_at = ?4 WHERE id = ?1",
+            params![task_id, node_id, project, now_iso()],
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        conn.execute(
+            "UPDATE tasks SET node_id = NULL, updated_at = ?2 WHERE id = ?1",
+            params![task_id, now_iso()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    load(&conn, &task_id).map_err(|e| e.to_string())
+}
+
 /// What deleting this project would touch, so the panel can warn before it happens.
 #[tauri::command]
 pub fn project_impact(db: State<Db>, id: String) -> Result<ProjectImpact, String> {
@@ -675,7 +705,7 @@ pub fn delete_project(db: State<Db>, id: String) -> Result<Vec<Project>, String>
     let mut conn = db.0.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(friendly)?;
 
-    tx.execute("UPDATE tasks SET project_id = NULL, updated_at = ?2 WHERE project_id = ?1", params![id, now_iso()])
+    tx.execute("UPDATE tasks SET project_id = NULL, node_id = NULL, updated_at = ?2 WHERE project_id = ?1", params![id, now_iso()])
         .map_err(friendly)?;
     tx.execute("DELETE FROM nodes WHERE project_id = ?1", params![id]).map_err(friendly)?;
     let removed = tx.execute("DELETE FROM projects WHERE id = ?1", params![id]).map_err(friendly)?;
@@ -830,6 +860,9 @@ pub fn delete_node(db: State<Db>, id: String) -> Result<Vec<Node>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let project_id: String = conn
         .query_row("SELECT project_id FROM nodes WHERE id = ?1", params![id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    // The tasks stay; they just go back to the project's top level (spec 007, FR-007).
+    conn.execute("UPDATE tasks SET node_id = NULL, updated_at = ?2 WHERE node_id = ?1", params![id, now_iso()])
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM nodes WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
     nodes_of(&conn, &project_id).map_err(|e| e.to_string())

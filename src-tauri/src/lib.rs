@@ -130,6 +130,7 @@ pub fn run() {
             commands::project_impact,
             commands::delete_project,
             commands::set_task_project,
+            commands::set_task_node,
             commands::save_tag,
             commands::delete_tag,
             commands::set_task_tags,

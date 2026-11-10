@@ -25,6 +25,9 @@ pub struct Task {
     /// Which project it belongs to; `None` means 未分类.
     #[serde(default)]
     pub project_id: Option<String>,
+    /// Which step inside that project it sits under; `None` means the project itself.
+    #[serde(default)]
+    pub node_id: Option<String>,
     /// Tags attached to it, filled in by the caller (empty when not loaded).
     #[serde(default)]
     pub tag_ids: Vec<String>,
@@ -131,6 +134,7 @@ impl Task {
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             project_id: row.get("project_id").unwrap_or(None),
+            node_id: row.get("node_id").unwrap_or(None),
             tag_ids: Vec::new(),
         })
     }

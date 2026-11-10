@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import dayjs from "dayjs";
 import { ArrowRight, ChevronDown, History, Inbox, X } from "lucide-vue-next";
@@ -16,6 +16,7 @@ import HelpSheet from "@/components/HelpSheet.vue";
 import UpdateSheet from "@/components/UpdateSheet.vue";
 import { useDayStore } from "@/stores/day";
 import { useUpdateStore } from "@/stores/update";
+import { api, type Task } from "@/lib/api";
 import { cn, heldDays } from "@/lib/utils";
 import { applyLocale, dayLabel, greeting, t, weekday } from "@/lib/i18n";
 
@@ -48,8 +49,62 @@ const groups = computed(() => {
   };
 });
 
-const summary = computed(() => {
-  const n = store.tasks.length;
+/** Today's unscheduled tasks, filed the way the user filed them: project -> step. */
+type HomeSection = { key: string; project: string | null; step: string | null; tasks: Task[] };
+
+const stepNames = ref<Record<string, string>>({});
+const collapsed = ref<Record<string, boolean>>({});
+
+watch(
+  () => store.tasks,
+  async (list) => {
+    const ids = [...new Set(list.map((x) => x.projectId).filter((x): x is string => !!x))];
+    if (!ids.length) {
+      stepNames.value = {};
+      return;
+    }
+    const names: Record<string, string> = {};
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          for (const node of await api.listNodes(id)) names[node.id] = node.title;
+        } catch {
+          /* the header falls back to 「未挂步骤」 */
+        }
+      }),
+    );
+    stepNames.value = names;
+  },
+  { immediate: true },
+);
+
+const homeSections = computed<HomeSection[]>(() => {
+  const order: string[] = [];
+  const map = new Map<string, HomeSection>();
+  for (const task of groups.value.normal) {
+    const project = task.projectId ? store.projects.find((p) => p.id === task.projectId) ?? null : null;
+    const key = project ? `${project.id}/${task.nodeId ?? ""}` : "__none__";
+    if (!map.has(key)) {
+      order.push(key);
+      map.set(key, {
+        key,
+        project: project?.name ?? null,
+        step: project && task.nodeId ? stepNames.value[task.nodeId] ?? t("home.noStep") : null,
+        tasks: [],
+      });
+    }
+    map.get(key)!.tasks.push(task);
+  }
+  const list = order.map((k) => map.get(k)!);
+  // 没归项目的永远垫底，像「未分类」那样。
+  return [...list.filter((s) => s.project !== null), ...list.filter((s) => s.project === null)];
+});
+
+function toggleSection(key: string) {
+  collapsed.value = { ...collapsed.value, [key]: !collapsed.value[key] };
+}
+
+const summary = computed(() => {  const n = store.tasks.length;
   if (n === 0) return t("summary.empty");
   const stuck = groups.value.stuck.length;
   const base = t("summary.base", { n });
@@ -278,15 +333,49 @@ onUnmounted(() => {
             <TaskRow v-for="task in groups.timed" :key="task.id" :task="task" />
           </section>
 
-          <!-- The rest -->
+          <!-- The rest: grouped by project and step, each group folds away -->
           <section v-if="groups.normal.length" class="mb-4">
-            <h2
-              v-if="groups.timed.length || groups.stuck.length"
-              class="mb-1 px-2.5 text-[11px] font-medium tracking-[0.1em] text-ink-faint"
-            >
-              {{ t("section.today") }}
-            </h2>
-            <TaskRow v-for="task in groups.normal" :key="task.id" :task="task" />
+            <template v-if="homeSections.length === 1 && !homeSections[0].project">
+              <h2
+                v-if="groups.timed.length || groups.stuck.length"
+                class="mb-1 px-2.5 text-[11px] font-medium tracking-[0.1em] text-ink-faint"
+              >
+                {{ t("section.today") }}
+              </h2>
+              <TaskRow v-for="task in groups.normal" :key="task.id" :task="task" />
+            </template>
+            <template v-else>
+              <div v-for="sec in homeSections" :key="sec.key" class="mb-1.5">
+                <button
+                  class="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-left transition-colors hover:bg-paper-deep"
+                  :aria-expanded="!collapsed[sec.key]"
+                  @click="toggleSection(sec.key)"
+                >
+                  <ChevronDown
+                    :size="11"
+                    :stroke-width="2.4"
+                    class="shrink-0 text-ink-faint transition-transform duration-150"
+                    :class="collapsed[sec.key] ? '-rotate-90' : ''"
+                  />
+                  <span
+                    class="max-w-[42%] truncate text-[11px] font-medium tracking-[0.06em]"
+                    :class="sec.project ? 'text-accent/80' : 'text-ink-faint'"
+                  >
+                    {{ sec.project ?? t("home.ungrouped") }}
+                  </span>
+                  <template v-if="sec.step">
+                    <span class="text-line">·</span>
+                    <span class="min-w-0 truncate text-[11px] text-ink-soft">{{ sec.step }}</span>
+                  </template>
+                  <span class="ml-auto shrink-0 text-[10.5px] tabular-nums text-ink-faint">
+                    {{ t("home.groupCount", { n: sec.tasks.length }) }}
+                  </span>
+                </button>
+                <div v-if="!collapsed[sec.key]" class="rise">
+                  <TaskRow v-for="task in sec.tasks" :key="task.id" :task="task" />
+                </div>
+              </div>
+            </template>
           </section>
 
           <!-- Empty -->

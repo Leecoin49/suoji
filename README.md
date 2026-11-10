@@ -120,11 +120,19 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
   the row itself. When capturing, the project chip left of the input does it up front —
   pick it once and the next line lands in that project; if it does not exist yet, use
   **New project** at the bottom of the picker and it is created and selected in one go.
-- **Project flow** (the folder icon in the title bar) is a vertical chain of steps: tick
-  one and it fades and strikes through, the next becomes **Now**; click a title to rename
-  it in place, append at the bottom, reopen anything you ticked by mistake.
-- The chain is linear on purpose — no dragging, no columns, no subtask tree. It answers
-  exactly one question: what is next.
+- **Project flow** (the folder icon in the title bar) is a two-level tree: **project → step → tasks**.
+  Each step holds its own tasks; the `+` that appears on hover adds one right there. Right-click
+  a project, a step or a task for rename and delete.
+- Every title — project, step, task — **renames on a click**. Deleting a step keeps its tasks
+  (they drop back to “not filed under a step”); deleting a task is the only thing that removes
+  work, and it is a soft delete.
+- The **Tree / Overview** switch turns the same project into a **fishbone**: the project is the
+  spine, every step is a bone labelled “open / total”, and finished bones fade — you see at a
+  glance which step is stuck.
+- Today's list on the home screen groups itself by **project · step**, one collapsible header per
+  group; anything without a project stays at the bottom.
+- The chain stays linear on purpose — no dragging, no columns, no unbounded nesting. Fixed three
+  levels, answering exactly one question: what is next.
 - Archiving a project only greys it out; deleting a tag also unhooks it from tasks;
   deleting a project asks first — the tasks stay, they just go back to unclassified and
   its step chain goes with it.

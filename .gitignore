@@ -19,3 +19,5 @@ unsigned.conf.json
 .pi/*.py
 .pi/*.mjs
 .pi/tmp/
+.pi/*.png
+.pi/*.json
