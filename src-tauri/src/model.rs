@@ -67,6 +67,14 @@ pub struct ProjectInput {
     pub archived: Option<bool>,
 }
 
+/// What deleting a project would touch — shown before the user confirms.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectImpact {
+    pub tasks: i64,
+    pub nodes: i64,
+}
+
 /// One step in a project's chain (spec 006).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

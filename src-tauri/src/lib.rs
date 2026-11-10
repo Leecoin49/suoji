@@ -125,6 +125,8 @@ pub fn run() {
             commands::get_stats,
             commands::list_classes,
             commands::save_project,
+            commands::project_impact,
+            commands::delete_project,
             commands::set_task_project,
             commands::save_tag,
             commands::delete_tag,

@@ -42,6 +42,12 @@ export interface Classes {
   tags: Tag[];
 }
 
+/** What deleting a project would touch — read before the second click. */
+export interface ProjectImpact {
+  tasks: number;
+  nodes: number;
+}
+
 /** One step in a project's chain (spec 006). */
 export interface Node {
   id: string;
@@ -119,6 +125,8 @@ export const api = {
   listClasses: () => invoke<Classes>("list_classes"),
   saveProject: (project: { id?: string | null; name: string; archived?: boolean | null }) =>
     invoke<Project>("save_project", { project }),
+  projectImpact: (id: string) => invoke<ProjectImpact>("project_impact", { id }),
+  deleteProject: (id: string) => invoke<Project[]>("delete_project", { id }),
   setTaskProject: (taskId: string, projectId: string | null) =>
     invoke<Task>("set_task_project", { taskId, projectId }),
   saveTag: (name: string) => invoke<Tag>("save_tag", { name }),

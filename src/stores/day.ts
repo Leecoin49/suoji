@@ -70,6 +70,14 @@ export const useDayStore = defineStore("day", () => {
     await refresh();
   }
 
+  /** Deleting a project keeps its tasks (they fall back to unclassified). */
+  async function removeProject(id: string) {
+    projects.value = await api.deleteProject(id);
+    if (classTask.value?.projectId === id) classTask.value = { ...classTask.value, projectId: null };
+    await refresh();
+    return projects.value;
+  }
+
   async function setTaskProject(taskId: string, projectId: string | null) {
     const updated = await api.setTaskProject(taskId, projectId);
     if (classTask.value?.id === taskId) classTask.value = updated;
@@ -181,6 +189,7 @@ export const useDayStore = defineStore("day", () => {
     saveProject,
     saveTag,
     removeTag,
+    removeProject,
     setTaskProject,
     setTaskTags,
     openClass,

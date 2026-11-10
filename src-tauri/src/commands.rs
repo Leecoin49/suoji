@@ -1,7 +1,7 @@
 use crate::db::{get_meta, set_meta, Db};
 use crate::model::{
-    Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectInput, RollEntry, Settings, StatsRaw, StatsSpan, Tag,
-    Task,
+    Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectImpact, ProjectInput, RollEntry, Settings, StatsRaw,
+    StatsSpan, Tag, Task,
 };
 use chrono::{Duration, Local, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -597,6 +597,56 @@ pub fn set_task_project(db: State<Db>, task_id: String, project_id: Option<Strin
     )
     .map_err(|e| e.to_string())?;
     load(&conn, &task_id).map_err(|e| e.to_string())
+}
+
+/// What deleting this project would touch, so the panel can warn before it happens.
+#[tauri::command]
+pub fn project_impact(db: State<Db>, id: String) -> Result<ProjectImpact, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    // Count every row the delete will unpin, soft-deleted ones included, so the
+    // number the panel shows is exactly what the transaction touches.
+    let tasks = conn
+        .query_row("SELECT COUNT(*) FROM tasks WHERE project_id = ?1", params![id], |r| r.get::<_, i64>(0))
+        .map_err(friendly)?;
+    let nodes = conn
+        .query_row("SELECT COUNT(*) FROM nodes WHERE project_id = ?1", params![id], |r| r.get::<_, i64>(0))
+        .map_err(friendly)?;
+    Ok(ProjectImpact { tasks, nodes })
+}
+
+/// Delete a project: its tasks fall back to unclassified, its steps go with it.
+/// Nothing the user wrote is lost — the tasks keep their text, only the grouping
+/// and the chain are gone — but the chain cannot be recovered, so the panel asks
+/// for a second click and shows the counts first.
+#[tauri::command]
+pub fn delete_project(db: State<Db>, id: String) -> Result<Vec<Project>, String> {
+    let mut conn = db.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(friendly)?;
+
+    tx.execute("UPDATE tasks SET project_id = NULL, updated_at = ?2 WHERE project_id = ?1", params![id, now_iso()])
+        .map_err(friendly)?;
+    tx.execute("DELETE FROM nodes WHERE project_id = ?1", params![id]).map_err(friendly)?;
+    let removed = tx.execute("DELETE FROM projects WHERE id = ?1", params![id]).map_err(friendly)?;
+    if removed == 0 {
+        return Err("classes: no such project".into());
+    }
+
+    let left = {
+        let mut stmt = tx
+            .prepare(
+                "SELECT id, name, archived, created_at, updated_at FROM projects \
+                 ORDER BY archived ASC, sort_order ASC, lower(name) ASC",
+            )
+            .map_err(friendly)?;
+        let rows: Vec<Project> = stmt
+            .query_map([], project_from_row)
+            .map_err(friendly)?
+            .collect::<rusqlite::Result<_>>()
+            .map_err(friendly)?;
+        rows
+    };
+    tx.commit().map_err(friendly)?;
+    Ok(left)
 }
 
 /// Find a tag by name or create it — typing a new tag while assigning is the common path.

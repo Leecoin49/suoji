@@ -37,3 +37,9 @@
   2. 按项目/标签卡只显示一行：classRowsOf 把「未知项目 id」直接 continue 丢掉，且 StatsSheet 只用缓存分类数据 → 未知 id 并入未分类（占比和仍为 1），面板打开时 store.loadClasses(true) 强制刷新。
   3. TaskRow chips、ClassSheet、ProjectSheet 的真机点击全部走通（含新建项目、新建节点、勾选节点）。
 - class_check.mjs 补了 3 条防回归断言（未知 id 并入未分类 / 下钻含幽灵项目 / 未知标签不计数），现 14 条全过。
+
+## 增补验收（2026-11-10，项目删除与归档）
+- project_impact / delete_project 两条命令：`verify/delete_check.py` 在真库副本上跑通 10 条断言（影响计数、项目与节点消失、任务解绑且行数/完成状态/完成时刻不变、integrity ok），报告 `verify/delete-check.txt`。
+- UI：`verify/screens/delete-panel.png`（胶囊行右侧出现归档与删除两个图标）、`verify/screens/delete-confirm.png`（二次确认面板原文显示影响条数）。
+- 门禁：vue-tsc 干净、cargo fmt/clippy 干净、gate PASS 10、check-i18n PASS zh=257 en=257。
+- 未做：真人点「确认删除」验证不可逆路径（会动用户真实项目），留待用户自行尝试。
