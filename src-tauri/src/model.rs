@@ -239,6 +239,20 @@ pub struct Settings {
     pub autostart: bool,
     /// "zh" | "en"
     pub locale: String,
+    /// Whole-UI zoom: "0.9" | "1" | "1.1" | "1.25"
+    #[serde(default = "default_font_scale")]
+    pub font_scale: String,
+    /// "sans" | "serif" | "kai"
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
+}
+
+fn default_font_scale() -> String {
+    "1".into()
+}
+
+fn default_font_family() -> String {
+    "sans".into()
 }
 
 /// The interval the review panel is looking at.
@@ -300,6 +314,8 @@ impl Default for Settings {
             hotkey: "Ctrl+Alt+Space".into(),
             autostart: true,
             locale: "zh".into(),
+            font_scale: default_font_scale(),
+            font_family: default_font_family(),
         }
     }
 }

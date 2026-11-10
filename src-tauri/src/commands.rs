@@ -586,6 +586,8 @@ pub fn save_settings(app: tauri::AppHandle, db: State<Db>, settings: Settings) -
         set_meta(&conn, "hotkey", &settings.hotkey).map_err(|e| e.to_string())?;
         set_meta(&conn, "autostart", if settings.autostart { "1" } else { "0" }).map_err(|e| e.to_string())?;
         set_meta(&conn, "locale", &settings.locale).map_err(|e| e.to_string())?;
+        set_meta(&conn, "font_scale", &settings.font_scale).map_err(|e| e.to_string())?;
+        set_meta(&conn, "font_family", &settings.font_family).map_err(|e| e.to_string())?;
     }
 
     // Start with Windows

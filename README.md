@@ -161,6 +161,14 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
 - The project chip in the capture bar now opens **steps**: pick a whole project, one of its
   steps, or create a step on the spot — the line lands filed there.
 
+### Easier on the eyes
+
+- The three text shades are pulled apart by role: near-black body, a properly dark secondary,
+  and a muted caption that still passes on the paper background.
+- Settings → **Appearance**: four text sizes (Small / Default / Large / Largest) and three
+  typefaces (Sans / Serif / Kai). Picking one shows instantly, Save remembers it — the whole
+  layout scales, so bigger type never piles up on itself.
+
 ### Bilingual, built in
 
 - The whole UI ships in **English and Chinese**; switch it in Settings, the tray

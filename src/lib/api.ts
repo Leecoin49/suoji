@@ -103,7 +103,14 @@ export interface Settings {
   hotkey: string;
   autostart: boolean;
   locale: Locale;
+  /** Whole-UI zoom: "0.9" | "1" | "1.1" | "1.25". */
+  fontScale: FontScale;
+  /** "sans" | "serif" | "kai". */
+  fontFamily: FontFamily;
 }
+
+export type FontScale = "0.9" | "1" | "1.1" | "1.25";
+export type FontFamily = "sans" | "serif" | "kai";
 
 export interface StatsSpan {
   start: string;

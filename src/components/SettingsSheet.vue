@@ -2,9 +2,10 @@
 import { ref, watch } from "vue";
 import { X } from "lucide-vue-next";
 import type { Settings } from "@/lib/api";
+import { FONT_FAMILIES, FONT_SCALES, applyAppearance } from "@/lib/appearance";
 import { useDayStore } from "@/stores/day";
 import { useUpdateStore } from "@/stores/update";
-import { locale, t } from "@/lib/i18n";
+import { locale, t, type MessageKey } from "@/lib/i18n";
 
 const props = defineProps<{ open: boolean }>();
 const store = useDayStore();
@@ -29,6 +30,24 @@ async function save() {
   saved.value = true;
   setTimeout(() => emit("close"), 400);
 }
+
+/* Picking a size or a face should show itself right away; 保存 just remembers it. */
+function preview() {
+  applyAppearance(draft.value);
+}
+
+const scaleLabels: Record<string, MessageKey> = {
+  "0.9": "settings.scaleSmall",
+  "1": "settings.scaleDefault",
+  "1.1": "settings.scaleLarge",
+  "1.25": "settings.scaleHuge",
+};
+
+const familyLabels: Record<string, MessageKey> = {
+  sans: "settings.fontSans",
+  serif: "settings.fontSerif",
+  kai: "settings.fontKai",
+};
 
 const field =
   "w-full rounded-lg border border-line bg-card px-2.5 py-1.5 text-[13px] text-ink focus:border-accent/40";
@@ -78,6 +97,51 @@ const field =
           >
             {{ draft.hotkey }}
           </kbd>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h3 class="text-[11px] font-medium tracking-[0.14em] text-ink-faint">
+          {{ t("settings.appearance") }}
+        </h3>
+
+        <div>
+          <p class="mb-1.5 text-[12px] text-ink-soft">{{ t("settings.fontSize") }}</p>
+          <div class="flex items-center gap-0.5 rounded-xl bg-paper-deep p-1">
+            <button
+              v-for="s in FONT_SCALES"
+              :key="s"
+              class="flex-1 rounded-lg py-1.5 text-[12.5px] transition-all"
+              :class="
+                draft.fontScale === s
+                  ? 'bg-card text-ink shadow-[0_1px_3px_rgba(34,30,25,0.08)]'
+                  : 'text-ink-soft hover:text-ink'
+              "
+              @click="draft.fontScale = s; preview()"
+            >
+              {{ t(scaleLabels[s]) }}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p class="mb-1.5 text-[12px] text-ink-soft">{{ t("settings.fontFamily") }}</p>
+          <div class="flex items-center gap-0.5 rounded-xl bg-paper-deep p-1">
+            <button
+              v-for="f in FONT_FAMILIES"
+              :key="f"
+              class="flex-1 rounded-lg py-1.5 text-[12.5px] transition-all"
+              :class="
+                draft.fontFamily === f
+                  ? 'bg-card text-ink shadow-[0_1px_3px_rgba(34,30,25,0.08)]'
+                  : 'text-ink-soft hover:text-ink'
+              "
+              @click="draft.fontFamily = f; preview()"
+            >
+              {{ t(familyLabels[f]) }}
+            </button>
+          </div>
+          <p class="mt-1.5 text-[11.5px] leading-5 text-ink-faint">{{ t("settings.fontHint") }}</p>
         </div>
       </section>
 

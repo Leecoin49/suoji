@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { api, type DayView, type Locale, type Project, type Recurrence, type Settings, type Tag, type Task } from "@/lib/api";
 import { todayStr } from "@/lib/utils";
 import { applyLocale } from "@/lib/i18n";
+import { applyAppearance } from "@/lib/appearance";
 
 export const useDayStore = defineStore("day", () => {
   const view = ref<DayView | null>(null);
@@ -13,6 +14,8 @@ export const useDayStore = defineStore("day", () => {
     hotkey: "Ctrl+Alt+Space",
     autostart: true,
     locale: "zh",
+    fontScale: "1",
+    fontFamily: "sans",
   });
   const tab = ref<"today" | "inbox">("today");
   const busy = ref(false);
@@ -210,10 +213,13 @@ export const useDayStore = defineStore("day", () => {
 
   async function loadSettings() {
     settings.value = await api.getSettings();
+    applyAppearance(settings.value);
+    applyLocale(settings.value.locale);
   }
 
   async function saveSettings(s: Settings) {
     settings.value = await api.saveSettings(s);
+    applyAppearance(settings.value);
     applyLocale(settings.value.locale);
   }
 

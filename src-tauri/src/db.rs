@@ -227,5 +227,7 @@ pub fn settings(conn: &Connection) -> crate::model::Settings {
         hotkey: get_meta(conn, "hotkey").unwrap_or(d.hotkey),
         autostart: get_meta(conn, "autostart").map(|v| v == "1").unwrap_or(d.autostart),
         locale: get_meta(conn, "locale").unwrap_or(d.locale),
+        font_scale: get_meta(conn, "font_scale").unwrap_or(d.font_scale),
+        font_family: get_meta(conn, "font_family").unwrap_or(d.font_family),
     }
 }
