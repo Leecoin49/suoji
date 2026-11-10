@@ -154,8 +154,8 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
 
 <template>
   <div
-    class="group relative flex items-start gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-card"
-    :class="task.done && 'opacity-50'"
+    class="group relative flex items-start gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-card"
+    :class="task.done && 'opacity-45'"
     @contextmenu="openMenu"
   >
     <!-- Checkbox -->
@@ -204,7 +204,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
       >
         <span
           v-if="task.recurrenceId"
-          class="flex items-center gap-0.5 rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint"
+          class="flex items-center gap-0.5 rounded-full bg-paper-deep px-1.5 py-0.5 text-[11px] text-ink-faint"
           :title="t('repeat.badge')"
         >
           <Repeat :size="9" :stroke-width="2.2" />
@@ -212,7 +212,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         </span>
         <button
           v-if="deadline && !task.done"
-          class="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium transition-colors"
+          class="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors"
           :class="deadlineTone"
           :title="t('task.menu.deadline')"
           @click="startDeadline"
@@ -222,7 +222,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         </button>
         <button
           v-if="project"
-          class="max-w-[140px] truncate rounded-full bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent transition-colors hover:bg-accent/20"
+          class="max-w-[140px] truncate rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent transition-colors hover:bg-accent/20"
           :title="t('stats.projectLabel')"
           @click="store.openClass(task)"
         >
@@ -231,7 +231,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         <button
           v-for="name in shownTags"
           :key="name"
-          class="max-w-[110px] truncate rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint transition-colors hover:text-ink-soft"
+          class="max-w-[110px] truncate rounded-full bg-paper-deep px-1.5 py-0.5 text-[11px] text-ink-faint transition-colors hover:text-ink-soft"
           :title="t('stats.tagLabel')"
           @click="store.openClass(task)"
         >
@@ -239,7 +239,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         </button>
         <button
           v-if="moreTags"
-          class="rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint hover:text-ink-soft"
+          class="rounded-full bg-paper-deep px-1.5 py-0.5 text-[11px] text-ink-faint hover:text-ink-soft"
           @click="store.openClass(task)"
         >
           +{{ moreTags }}
@@ -313,7 +313,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
       </span>
       <span
         v-if="task.done && task.rollCount > 0"
-        class="rounded-full bg-paper-deep px-2 py-0.5 text-[10.5px] text-ink-faint"
+        class="rounded-full bg-paper-deep px-2 py-0.5 text-[11px] text-ink-faint"
         :title="t('task.badge.rolledHint', { n: task.rollCount })"
       >
         {{ t("task.badge.rolled", { n: task.rollCount }) }}

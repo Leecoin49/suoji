@@ -14,3 +14,6 @@
 - [x] T010 [门禁] `pnpm exec vue-tsc --noEmit` + `cargo check` + `cargo fmt` + `cargo clippy -D warnings`
 - [x] T011 [门禁] `scripts/speckit/check-i18n.ps1` 与 `gate.ps1`
 - [x] T012 [双语] `README.md` / `README.zh-CN.md` 同步外观一节
+- [x] T013 [US1] `src/App.vue`：日期下方进度线（`progress` computed + `home.progress`）
+- [x] T014 [US1] `src/App.vue`：分组内任务缩进 + 竖线；“一直没动”加图标与条数徽标
+- [x] T015 [US1] `src/components/TaskRow.vue`：行距 `py-2 → py-2.5`、胶囊 `10.5px → 11px`、完成行 `opacity-45`

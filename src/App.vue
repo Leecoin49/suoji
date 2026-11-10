@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import dayjs from "dayjs";
-import { ArrowRight, ChevronDown, History, Inbox, X } from "lucide-vue-next";
+import { AlertTriangle, ArrowRight, ChevronDown, History, Inbox, X } from "lucide-vue-next";
 import TitleBar from "@/components/TitleBar.vue";
 import CaptureBar from "@/components/CaptureBar.vue";
 import TaskRow from "@/components/TaskRow.vue";
@@ -114,11 +114,19 @@ function overdueCount(tasks: Task[]) {
   }).length;
 }
 
-const summary = computed(() => {  const n = store.tasks.length;
+const summary = computed(() => {
+  const n = store.tasks.length;
   if (n === 0) return t("summary.empty");
   const stuck = groups.value.stuck.length;
   const base = t("summary.base", { n });
   return stuck ? base + t("summary.stuck", { n: stuck }) : base;
+});
+
+/** Today's shape in one line: how much of the card is already ticked off. */
+const progress = computed(() => {
+  const done = store.doneToday.length;
+  const total = done + store.tasks.length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 });
 
 const tabs = computed(() => [
@@ -285,6 +293,19 @@ onUnmounted(() => {
             <span class="text-ink-faint">{{ greeting() }}</span>
             <span class="mx-1.5 text-line">·</span>{{ summary }}
           </p>
+
+          <!-- How far into today we are, in one thin line -->
+          <div v-if="store.tab === 'today' && progress.total" class="mt-3 flex items-center gap-2.5">
+            <div class="h-[3px] min-w-0 flex-1 overflow-hidden rounded-full bg-paper-deep">
+              <div
+                class="h-full rounded-full bg-accent/75 transition-[width] duration-500 ease-out"
+                :style="{ width: progress.pct + '%' }"
+              />
+            </div>
+            <span class="shrink-0 text-[10.5px] tabular-nums text-ink-faint">
+              {{ t("home.progress", { done: progress.done, total: progress.total }) }}
+            </span>
+          </div>
         </div>
 
         <!-- Segmented control -->
@@ -343,8 +364,12 @@ onUnmounted(() => {
           <section v-if="groups.stuck.length" class="mb-5 rise">
             <div class="rounded-2xl border border-warn/20 bg-warn-soft/60 px-2 py-2">
               <div class="px-2.5 pb-1 pt-1">
-                <span class="text-[11px] font-medium tracking-[0.1em] text-warn">
+                <span class="flex items-center gap-1.5 text-[11px] font-medium tracking-[0.1em] text-warn">
+                  <AlertTriangle :size="11" :stroke-width="2.2" class="shrink-0" />
                   {{ t("stuck.heading") }}
+                  <span class="rounded-full bg-warn/15 px-1.5 text-[10px] tabular-nums">
+                    {{ groups.stuck.length }}
+                  </span>
                 </span>
               </div>
               <TaskRow v-for="task in groups.stuck" :key="task.id" :task="task" />
@@ -403,7 +428,7 @@ onUnmounted(() => {
                     {{ t("home.groupCount", { n: sec.tasks.length }) }}
                   </span>
                 </button>
-                <div v-if="!collapsed[sec.key]" class="rise">
+                <div v-if="!collapsed[sec.key]" class="rise ml-3 border-l border-line-soft">
                   <TaskRow v-for="task in sec.tasks" :key="task.id" :task="task" />
                 </div>
               </div>
