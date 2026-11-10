@@ -13,6 +13,7 @@ const text = ref("");
 const focused = ref(false);
 const pickerOpen = ref(false);
 const creating = ref(false);
+let skipCommit = false;
 const newName = ref("");
 const nameErr = ref("");
 let nameInput: HTMLInputElement | null = null;
@@ -66,6 +67,7 @@ function onKey(e: KeyboardEvent) {
 function togglePicker() {
   pickerOpen.value = !pickerOpen.value;
   if (!pickerOpen.value) {
+    skipCommit = true;
     creating.value = false;
     newName.value = "";
     nameErr.value = "";
@@ -73,6 +75,7 @@ function togglePicker() {
 }
 
 function pickProject(id: string | null) {
+  skipCommit = true;
   store.setCaptureProject(id);
   pickerOpen.value = false;
   creating.value = false;
@@ -80,12 +83,14 @@ function pickProject(id: string | null) {
 }
 
 function startCreate() {
+  skipCommit = false;
   creating.value = true;
   nameErr.value = "";
   void nextTick(() => nameInput?.focus());
 }
 
 function cancelCreate() {
+  skipCommit = true;
   creating.value = false;
   newName.value = "";
   nameErr.value = "";
@@ -93,6 +98,11 @@ function cancelCreate() {
 
 /** Creating from the capture bar selects the new project straight away. */
 async function commitCreate() {
+  // Clicking Cancel blurs the input first; do not turn that into a create.
+  if (skipCommit) {
+    skipCommit = false;
+    return;
+  }
   nameErr.value = "";
   const name = newName.value.trim();
   if (!name) {
