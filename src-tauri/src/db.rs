@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 pub struct Db(pub Mutex<Connection>);
 
 /// Bumped whenever `migrate` has real work to do. `0` = the schema shipped before 005.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS tasks (
@@ -83,8 +83,26 @@ CREATE TABLE IF NOT EXISTS nodes (
 CREATE INDEX IF NOT EXISTS idx_nodes_project ON nodes(project_id, sort_order);
 "#;
 
-/// Applied in order; index `i` brings the schema to version `i + 1`.
-const MIGRATIONS: &[&str] = &[MIGRATION_1, MIGRATION_2];
+/// 2 -> 3: the repeating rules (spec 008). Each rule spawns one ordinary task row
+/// per matching day, so nothing downstream needs to know about recurrence.
+const MIGRATION_3: &str = r#"
+CREATE TABLE IF NOT EXISTS recurrences (
+  id         TEXT PRIMARY KEY,
+  title      TEXT NOT NULL,
+  project_id TEXT,
+  node_id    TEXT,
+  kind       TEXT NOT NULL,
+  days       TEXT,
+  month_day  INTEGER,
+  archived   INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recurrences_active ON recurrences(archived);
+"#;
+
+/// Applied in order; every entry is idempotent, so they are re-asserted on each start.
+const MIGRATIONS: &[&str] = &[MIGRATION_1, MIGRATION_2, MIGRATION_3];
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
@@ -99,28 +117,28 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Bring an older database up to `SCHEMA_VERSION` in one transaction.
+/// Bring an older database up to `SCHEMA_VERSION`.
+///
+/// Every statement below is idempotent (`IF NOT EXISTS`, or guarded by `has_column`),
+/// so the safest thing is to re-assert the whole shape on each start: a database that
+/// somehow skipped a step repairs itself instead of failing forever. The stored version
+/// only decides whether a backup is taken first.
 ///
 /// Before touching anything we drop a copy next to the database, because this is the
 /// user's only copy of their data (constitution II). If the transaction fails nothing
 /// changes and the version stays where it was.
 fn migrate(conn: &Connection, path: &std::path::Path) -> rusqlite::Result<()> {
     let current = schema_version(conn);
-    if current >= SCHEMA_VERSION {
-        return Ok(());
-    }
 
     let backup = path.with_file_name("suoji.db.pre-005");
-    if !backup.exists() {
+    if current < SCHEMA_VERSION && !backup.exists() {
         let _ = std::fs::copy(path, &backup);
     }
 
     conn.execute_batch("BEGIN IMMEDIATE")?;
     let result = (|| -> rusqlite::Result<()> {
-        for (index, sql) in MIGRATIONS.iter().enumerate() {
-            if current < (index as i64) + 1 {
-                conn.execute_batch(sql)?;
-            }
+        for sql in MIGRATIONS {
+            conn.execute_batch(sql)?;
         }
         if !has_column(conn, "tasks", "project_id")? {
             conn.execute("ALTER TABLE tasks ADD COLUMN project_id TEXT", [])?;
@@ -129,6 +147,17 @@ fn migrate(conn: &Connection, path: &std::path::Path) -> rusqlite::Result<()> {
             conn.execute("ALTER TABLE tasks ADD COLUMN node_id TEXT", [])?;
         }
         conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_tasks_node ON tasks(node_id)")?;
+        if !has_column(conn, "tasks", "recurrence_id")? {
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_id TEXT", [])?;
+        }
+        if !has_column(conn, "tasks", "occurrence_date")? {
+            conn.execute("ALTER TABLE tasks ADD COLUMN occurrence_date TEXT", [])?;
+        }
+        // One row per rule per day; the generator leans on this instead of a read-then-write check.
+        conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_tasks_occurrence \
+             ON tasks(recurrence_id, occurrence_date) WHERE recurrence_id IS NOT NULL",
+        )?;
         conn.execute(
             "INSERT INTO meta(key, value) VALUES('schema_version', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",

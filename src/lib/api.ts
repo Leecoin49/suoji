@@ -20,6 +20,10 @@ export interface Task {
   nodeId: string | null;
   /** Tags on it — empty when the caller did not load them. */
   tagIds: string[];
+  /** Spawning rule, `null` for a one-off task. */
+  recurrenceId: string | null;
+  /** Which day of the rule this run belongs to. */
+  occurrenceDate: string | null;
 }
 
 /** A bucket of related work. One level deep on purpose (spec 005 D1). */
@@ -58,6 +62,23 @@ export interface Node {
   note: string | null;
   done: boolean;
   sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A repeating rule (spec 008). It spawns one ordinary task per matching day. */
+export interface Recurrence {
+  id: string;
+  title: string;
+  projectId: string | null;
+  nodeId: string | null;
+  /** "daily" | "weekly" | "monthly" */
+  kind: string;
+  /** Weekly only: 1 = Monday … 7 = Sunday. */
+  days: number[];
+  /** Monthly only: 1..=31, where 31 means "the last day" in shorter months. */
+  monthDay: number | null;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -142,6 +163,20 @@ export const api = {
   deleteNode: (id: string) => invoke<Node[]>("delete_node", { id }),
   completeNode: (id: string) => invoke<Node[]>("complete_node", { id }),
   reopenNode: (id: string) => invoke<Node[]>("reopen_node", { id }),
+  listRecurrences: () => invoke<Recurrence[]>("list_recurrences"),
+  saveRecurrence: (input: {
+    id?: string | null;
+    title: string;
+    projectId?: string | null;
+    nodeId?: string | null;
+    kind: string;
+    days?: number[];
+    monthDay?: number | null;
+    archived?: boolean | null;
+  }) => invoke<Recurrence[]>("save_recurrence", { input }),
+  archiveRecurrence: (id: string, paused: boolean) =>
+    invoke<Recurrence[]>("archive_recurrence", { id, paused }),
+  deleteRecurrence: (id: string) => invoke<Recurrence[]>("delete_recurrence", { id }),
   addTask: (title: string, target?: string, dueAt?: string | null, projectId?: string | null) =>
     invoke<Task>("add_task", { title, target, dueAt: dueAt ?? null, projectId: projectId ?? null }),
   setDone: (id: string, done: boolean, note?: string | null) =>

@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
-import { CornerDownLeft, FolderTree, Plus } from "lucide-vue-next";
+import { CornerDownLeft, FolderTree, Plus, Repeat } from "lucide-vue-next";
 import { PROJECT_NAME_MAX, normalizeName } from "@/lib/classes";
 import dayjs from "dayjs";
 import { parseCapture } from "@/lib/parse";
@@ -20,6 +20,8 @@ let nameInput: HTMLInputElement | null = null;
 const grabName = (el: unknown) => {
   nameInput = (el as HTMLInputElement | null) ?? null;
 };
+
+const emit = defineEmits<{ (e: "recurring"): void }>();
 
 const captureProject = computed(() => store.projects.find((p) => p.id === store.captureProjectId) ?? null);
 
@@ -148,6 +150,16 @@ defineExpose({ focus });
       @click="focus"
     >
       <Plus :size="15" :stroke-width="2.2" class="shrink-0 text-ink-faint" />
+
+      <!-- Repeating rules live one click away; the bar itself stays a single line -->
+      <button
+        class="flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink-soft"
+        :title="t('nav.repeat')"
+        @click.stop="emit('recurring')"
+      >
+        <Repeat :size="11" :stroke-width="2" class="shrink-0" />
+        <span>{{ t("capture.repeat") }}</span>
+      </button>
 
       <!-- Which project the next line lands in -->
       <div class="relative shrink-0">

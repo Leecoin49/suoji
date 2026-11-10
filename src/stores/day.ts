@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api, type DayView, type Locale, type Project, type Settings, type Tag, type Task } from "@/lib/api";
+import { api, type DayView, type Locale, type Project, type Recurrence, type Settings, type Tag, type Task } from "@/lib/api";
 import { todayStr } from "@/lib/utils";
 import { applyLocale } from "@/lib/i18n";
 
@@ -20,6 +20,7 @@ export const useDayStore = defineStore("day", () => {
   const historyDays = ref(30);
   const projects = ref<Project[]>([]);
   const tags = ref<Tag[]>([]);
+  const recurrences = ref<Recurrence[]>([]);
   /** The task whose 归类 sheet is open; `null` keeps it closed. */
   const classTask = ref<Task | null>(null);
   /** Project the capture bar attaches to new tasks; in-memory only, never persisted. */
@@ -100,6 +101,29 @@ export const useDayStore = defineStore("day", () => {
 
   function closeClass() {
     classTask.value = null;
+  }
+
+  async function loadRecurrences() {
+    recurrences.value = await api.listRecurrences();
+    return recurrences.value;
+  }
+
+  async function saveRecurrence(input: Parameters<typeof api.saveRecurrence>[0]) {
+    recurrences.value = await api.saveRecurrence(input);
+    await refresh();
+    return recurrences.value;
+  }
+
+  async function toggleRecurrence(id: string, paused: boolean) {
+    recurrences.value = await api.archiveRecurrence(id, paused);
+    await refresh();
+    return recurrences.value;
+  }
+
+  async function removeRecurrence(id: string) {
+    recurrences.value = await api.deleteRecurrence(id);
+    await refresh();
+    return recurrences.value;
   }
 
   async function add(title: string, target?: string, dueAt?: string | null) {
@@ -188,6 +212,7 @@ export const useDayStore = defineStore("day", () => {
     historyDays,
     projects,
     tags,
+    recurrences,
     classTask,
     captureProjectId,
     tasks,
@@ -206,6 +231,10 @@ export const useDayStore = defineStore("day", () => {
     setTaskTags,
     openClass,
     closeClass,
+    loadRecurrences,
+    saveRecurrence,
+    toggleRecurrence,
+    removeRecurrence,
     setCaptureProject,
     add,
     toggle,

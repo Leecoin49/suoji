@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { AlignLeft, Check, Inbox, Pencil, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
+import { AlignLeft, Check, Inbox, Pencil, Repeat, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
 import type { Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
 import { heldDays, timeLabel } from "@/lib/utils";
@@ -75,9 +75,17 @@ async function commitNote() {
 }
 
 const days = computed(() => heldDays(props.task));
-
 /** Chips are cheap, but three is enough on a row. */
 const project = computed(() => store.projects.find((p) => p.id === props.task.projectId) ?? null);
+
+/** "每天" / "每周" / "每月" — enough to tell at a glance why this line keeps coming back. */
+const repeatLabel = computed(() => {
+  const rule = store.recurrences.find((r) => r.id === props.task.recurrenceId);
+  if (!rule) return t("repeat.badge");
+  if (rule.kind === "daily") return t("repeat.daily");
+  if (rule.kind === "weekly") return t("repeat.weekly");
+  return t("repeat.monthly");
+});
 const tagNames = computed(() =>
   (props.task.tagIds ?? [])
     .map((id) => store.tags.find((x) => x.id === id)?.name)
@@ -134,9 +142,17 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
 
       <!-- Where it belongs (spec 005): project + tags, one click opens the sheet -->
       <div
-        v-if="project || tagNames.length"
+        v-if="project || tagNames.length || task.recurrenceId"
         class="mt-1 flex flex-wrap items-center gap-1"
       >
+        <span
+          v-if="task.recurrenceId"
+          class="flex items-center gap-0.5 rounded-full bg-paper-deep px-1.5 py-0.5 text-[10.5px] text-ink-faint"
+          :title="t('repeat.badge')"
+        >
+          <Repeat :size="9" :stroke-width="2.2" />
+          {{ repeatLabel }}
+        </span>
         <button
           v-if="project"
           class="max-w-[140px] truncate rounded-full bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent transition-colors hover:bg-accent/20"

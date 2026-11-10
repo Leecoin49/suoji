@@ -1,16 +1,17 @@
 use crate::db::{get_meta, set_meta, Db};
 use crate::model::{
-    Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectImpact, ProjectInput, RollEntry, Settings, StatsRaw,
-    StatsSpan, Tag, Task,
+    Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectImpact, ProjectInput, Recurrence, RecurrenceInput,
+    RollEntry, Settings, StatsRaw, StatsSpan, Tag, Task,
 };
-use chrono::{Duration, Local, NaiveDate};
+use chrono::{Datelike, Duration, Local, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
 use tauri::{Manager, State};
 use uuid::Uuid;
 
 const SELECT: &str = "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-     roll_count, last_rolled_at, created_at, updated_at, project_id, node_id FROM tasks";
+     roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
+     occurrence_date FROM tasks";
 
 fn today() -> String {
     Local::now().format("%Y-%m-%d").to_string()
@@ -60,6 +61,9 @@ fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> rusqlite::Result<()> {
 
 /// Roll anything unfinished from yesterday (or earlier) onto today.
 pub fn rollover(conn: &Connection, day: &str) -> rusqlite::Result<usize> {
+    // A repeating task does not owe yesterday's run: that one is spent. Marking it
+    // before the roll keeps it out of today's list and out of the roll counter.
+    expire_stale(conn, day)?;
     conn.execute(
         "UPDATE tasks SET
             first_seen_date = COALESCE(first_seen_date, plan_date),
@@ -73,9 +77,98 @@ pub fn rollover(conn: &Connection, day: &str) -> rusqlite::Result<usize> {
     )
 }
 
+/// Yesterday's unfinished runs of a rule are simply gone — one missed day does not
+/// pile up as debt (spec 008 US2).
+fn expire_stale(conn: &Connection, day: &str) -> rusqlite::Result<usize> {
+    conn.execute(
+        "UPDATE tasks SET bucket = 'expired', updated_at = ?2
+         WHERE done = 0 AND deleted = 0 AND bucket = 'today'
+           AND recurrence_id IS NOT NULL
+           AND occurrence_date IS NOT NULL AND occurrence_date < ?1",
+        params![day, now_iso()],
+    )
+}
+
+/// "2026-11-10" -> 2026-11-10
+fn parse_day(day: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()
+}
+
+/// Does this rule fire on `date`? Weekly days are numbered 1 = Monday … 7 = Sunday.
+fn fires_on(rule: &Recurrence, date: NaiveDate) -> bool {
+    match rule.kind.as_str() {
+        "daily" => true,
+        "weekly" => {
+            let wd = date.weekday().number_from_monday() as i64;
+            rule.days.contains(&wd)
+        }
+        "monthly" => {
+            let want = rule.month_day.unwrap_or(1);
+            let today = date.day() as i64;
+            // "The 31st" has to mean the last day of a short month, not "skip February".
+            let last = last_day_of_month(date);
+            today == want.min(last)
+        }
+        _ => false,
+    }
+}
+
+fn last_day_of_month(date: NaiveDate) -> i64 {
+    let (year, month) = (date.year(), date.month());
+    let (next_year, next_month) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    match NaiveDate::from_ymd_opt(next_year, next_month, 1) {
+        Some(first_of_next) => (first_of_next - Duration::days(1)).day() as i64,
+        None => 28,
+    }
+}
+
+/// Spawn today's run of every matching rule. Safe to call any number of times:
+/// the unique index on (recurrence_id, occurrence_date) makes a second insert a no-op.
+pub fn materialize(conn: &Connection, day: &str) -> rusqlite::Result<usize> {
+    let Some(date) = parse_day(day) else { return Ok(0) };
+    let mut stmt = conn.prepare(
+        "SELECT id, title, project_id, node_id, kind, days, month_day, archived, created_at, updated_at \
+         FROM recurrences WHERE archived = 0 ORDER BY created_at ASC",
+    )?;
+    let rules: Vec<Recurrence> = stmt.query_map([], Recurrence::from_row)?.collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
+    let now = now_iso();
+    let mut made = 0;
+    for rule in rules {
+        if !fires_on(&rule, date) {
+            continue;
+        }
+        // A rule may outlive the project it was filed under; keep the task, drop the link.
+        let project_id: Option<String> = rule.project_id.filter(|pid| {
+            conn.query_row("SELECT 1 FROM projects WHERE id = ?1", params![pid], |r| r.get::<_, i64>(0))
+                .optional()
+                .map(|found| found.is_some())
+                .unwrap_or(false)
+        });
+        let node_id: Option<String> = rule.node_id.filter(|nid| {
+            conn.query_row("SELECT 1 FROM nodes WHERE id = ?1", params![nid], |r| r.get::<_, i64>(0))
+                .optional()
+                .map(|found| found.is_some())
+                .unwrap_or(false)
+        });
+        let changed = conn.execute(
+            "INSERT INTO tasks(id, title, note, bucket, plan_date, first_seen_date, due_at, done, \
+             done_at, roll_count, last_rolled_at, sort_order, deleted, created_at, updated_at, \
+             project_id, node_id, recurrence_id, occurrence_date) \
+             VALUES(?1, ?2, NULL, 'today', ?3, ?3, NULL, 0, NULL, 0, NULL, 0, 0, ?4, ?4, ?5, ?6, ?7, ?3) \
+             ON CONFLICT DO NOTHING",
+            params![Uuid::new_v4().to_string(), rule.title, day, now, project_id, node_id, rule.id],
+        )?;
+        made += changed;
+    }
+    Ok(made)
+}
+
 /// Today's list + today's suggestions + inbox count.
 pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
     let day = today();
+    materialize(conn, &day)?;
     rollover(conn, &day)?;
 
     let mut stmt = conn.prepare(&format!(
@@ -86,7 +179,8 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
 
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-         roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks \
+         roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
+         occurrence_date FROM tasks \
          WHERE done = 1 AND deleted = 0 AND done_at LIKE ?1 ORDER BY done_at DESC",
     )?;
     let mut done_today: Vec<Task> =
@@ -94,7 +188,8 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
 
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
-         roll_count, last_rolled_at, created_at, updated_at, project_id FROM tasks \
+         roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
+         occurrence_date FROM tasks \
          WHERE done = 0 AND deleted = 0 AND bucket = 'inbox' \
          ORDER BY updated_at ASC LIMIT 3",
     )?;
@@ -672,11 +767,8 @@ pub fn set_task_node(db: State<Db>, task_id: String, node_id: Option<String>) ->
         )
         .map_err(|e| e.to_string())?;
     } else {
-        conn.execute(
-            "UPDATE tasks SET node_id = NULL, updated_at = ?2 WHERE id = ?1",
-            params![task_id, now_iso()],
-        )
-        .map_err(|e| e.to_string())?;
+        conn.execute("UPDATE tasks SET node_id = NULL, updated_at = ?2 WHERE id = ?1", params![task_id, now_iso()])
+            .map_err(|e| e.to_string())?;
     }
     load(&conn, &task_id).map_err(|e| e.to_string())
 }
@@ -705,8 +797,11 @@ pub fn delete_project(db: State<Db>, id: String) -> Result<Vec<Project>, String>
     let mut conn = db.0.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(friendly)?;
 
-    tx.execute("UPDATE tasks SET project_id = NULL, node_id = NULL, updated_at = ?2 WHERE project_id = ?1", params![id, now_iso()])
-        .map_err(friendly)?;
+    tx.execute(
+        "UPDATE tasks SET project_id = NULL, node_id = NULL, updated_at = ?2 WHERE project_id = ?1",
+        params![id, now_iso()],
+    )
+    .map_err(friendly)?;
     tx.execute("DELETE FROM nodes WHERE project_id = ?1", params![id]).map_err(friendly)?;
     let removed = tx.execute("DELETE FROM projects WHERE id = ?1", params![id]).map_err(friendly)?;
     if removed == 0 {
@@ -895,4 +990,283 @@ pub fn count_today(conn: &Connection) -> rusqlite::Result<i64> {
     conn.query_row("SELECT COUNT(*) FROM tasks WHERE done = 0 AND deleted = 0 AND bucket = 'today'", [], |r| r.get(0))
         .optional()
         .map(|v| v.unwrap_or(0))
+}
+
+// ---------------------------------------------------------------- recurring rules
+
+const RECURRING_SELECT: &str = "SELECT id, title, project_id, node_id, kind, days, month_day, archived, \
+     created_at, updated_at FROM recurrences";
+
+fn rules_of(conn: &Connection) -> rusqlite::Result<Vec<Recurrence>> {
+    let mut stmt = conn.prepare(&format!("{RECURRING_SELECT} ORDER BY archived ASC, created_at ASC"))?;
+    let rows = stmt.query_map([], Recurrence::from_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+#[tauri::command]
+pub fn list_recurrences(db: State<Db>) -> Result<Vec<Recurrence>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    rules_of(&conn).map_err(|e| e.to_string())
+}
+
+/// Create (no id) or edit one rule. The edit takes effect from the next matching day;
+/// rows already spawned keep looking exactly like what they were.
+#[tauri::command]
+pub fn save_recurrence(db: State<Db>, input: RecurrenceInput) -> Result<Vec<Recurrence>, String> {
+    let title = input.title.trim().to_string();
+    if title.is_empty() {
+        return Err("a rule needs a title".into());
+    }
+    if title.chars().count() > TASK_TITLE_MAX {
+        return Err("title too long".into());
+    }
+    let kind = match input.kind.as_str() {
+        "daily" | "weekly" | "monthly" => input.kind.clone(),
+        _ => return Err("unknown recurrence".into()),
+    };
+    let mut days: Vec<i64> = input.days.into_iter().filter(|d| (1..=7).contains(d)).collect();
+    days.sort_unstable();
+    days.dedup();
+    if kind == "weekly" && days.is_empty() {
+        return Err("pick at least one weekday".into());
+    }
+    let month_day = input.month_day.filter(|d| (1..=31).contains(d));
+    if kind == "monthly" && month_day.is_none() {
+        return Err("pick a day of the month".into());
+    }
+
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let day = today();
+    match input.id {
+        Some(id) => {
+            conn.execute(
+                "UPDATE recurrences SET title = ?2, project_id = ?3, node_id = ?4, kind = ?5, \
+                 days = ?6, month_day = ?7, archived = COALESCE(?8, archived), updated_at = ?9 \
+                 WHERE id = ?1",
+                params![
+                    id,
+                    title,
+                    input.project_id.filter(|v| !v.is_empty()),
+                    input.node_id.filter(|v| !v.is_empty()),
+                    kind,
+                    days.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(","),
+                    month_day,
+                    input.archived.map(|a| a as i64),
+                    now_iso()
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            if input.archived == Some(false) {
+                // Resuming should not skip today.
+                materialize(&conn, &day).map_err(|e| e.to_string())?;
+            }
+        }
+        None => {
+            conn.execute(
+                "INSERT INTO recurrences(id, title, project_id, node_id, kind, days, month_day, archived, \
+                 created_at, updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, ?8)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    title,
+                    input.project_id.filter(|v| !v.is_empty()),
+                    input.node_id.filter(|v| !v.is_empty()),
+                    kind,
+                    days.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(","),
+                    month_day,
+                    now_iso()
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            materialize(&conn, &day).map_err(|e| e.to_string())?;
+        }
+    }
+    rules_of(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn archive_recurrence(db: State<Db>, id: String, paused: bool) -> Result<Vec<Recurrence>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE recurrences SET archived = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, paused as i64, now_iso()],
+    )
+    .map_err(|e| e.to_string())?;
+    rules_of(&conn).map_err(|e| e.to_string())
+}
+
+/// Dropping the rule drops the run you can still act on. Finished runs stay in the
+/// records as ordinary tasks — deleting history because a rule was retired would be
+/// rewriting the past (constitution II).
+#[tauri::command]
+pub fn delete_recurrence(db: State<Db>, id: String) -> Result<Vec<Recurrence>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let now = now_iso();
+    conn.execute(
+        "UPDATE tasks SET deleted = 1, updated_at = ?2 WHERE recurrence_id = ?1 AND done = 0",
+        params![id, now],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute("UPDATE tasks SET recurrence_id = NULL, updated_at = ?2 WHERE recurrence_id = ?1", params![id, now])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM recurrences WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    rules_of(&conn).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(kind: &str, days: Vec<i64>, month_day: Option<i64>) -> Recurrence {
+        Recurrence {
+            id: "r".into(),
+            title: "t".into(),
+            project_id: None,
+            node_id: None,
+            kind: kind.into(),
+            days,
+            month_day,
+            archived: false,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn day(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
+    fn daily_fires_every_day() {
+        let r = rule("daily", vec![], None);
+        assert!(fires_on(&r, day(2026, 11, 9)));
+        assert!(fires_on(&r, day(2026, 11, 10)));
+        assert!(fires_on(&r, day(2026, 2, 28)));
+    }
+
+    #[test]
+    fn weekly_fires_on_the_listed_weekdays() {
+        let r = rule("weekly", vec![1, 3, 5], None);
+        assert!(fires_on(&r, day(2026, 11, 9)), "monday");
+        assert!(!fires_on(&r, day(2026, 11, 10)), "tuesday");
+        assert!(fires_on(&r, day(2026, 11, 11)), "wednesday");
+        assert!(fires_on(&r, day(2026, 11, 13)), "friday");
+        assert!(!fires_on(&r, day(2026, 11, 15)), "sunday");
+    }
+
+    #[test]
+    fn monthly_31_lands_on_the_last_day_of_a_short_month() {
+        let r = rule("monthly", vec![], Some(31));
+        assert!(fires_on(&r, day(2026, 1, 31)));
+        assert!(!fires_on(&r, day(2026, 1, 30)));
+        assert!(fires_on(&r, day(2026, 2, 28)));
+        assert!(fires_on(&r, day(2024, 2, 29)));
+        assert!(fires_on(&r, day(2026, 4, 30)), "april ends on the 30th");
+        assert!(!fires_on(&r, day(2026, 4, 29)));
+    }
+
+    #[test]
+    fn monthly_30_collapses_into_february_too() {
+        let r = rule("monthly", vec![], Some(30));
+        assert!(fires_on(&r, day(2026, 2, 28)));
+        assert!(fires_on(&r, day(2026, 4, 30)));
+        assert!(!fires_on(&r, day(2026, 4, 29)));
+    }
+
+    #[test]
+    fn last_day_follows_the_calendar() {
+        assert_eq!(last_day_of_month(day(2026, 2, 10)), 28);
+        assert_eq!(last_day_of_month(day(2024, 2, 10)), 29);
+        assert_eq!(last_day_of_month(day(2026, 12, 10)), 31);
+        assert_eq!(last_day_of_month(day(2026, 4, 10)), 30);
+    }
+}
+
+#[cfg(test)]
+mod materialize_tests {
+    use super::*;
+
+    fn seed_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE tasks (
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, note TEXT, bucket TEXT NOT NULL DEFAULT 'inbox',
+                plan_date TEXT, first_seen_date TEXT, due_at TEXT, done INTEGER NOT NULL DEFAULT 0,
+                done_at TEXT, roll_count INTEGER NOT NULL DEFAULT 0, last_rolled_at TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                project_id TEXT, node_id TEXT, recurrence_id TEXT, occurrence_date TEXT);
+             CREATE UNIQUE INDEX ux_tasks_occurrence
+                ON tasks(recurrence_id, occurrence_date) WHERE recurrence_id IS NOT NULL;
+             CREATE TABLE recurrences (
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, project_id TEXT, node_id TEXT,
+                kind TEXT NOT NULL, days TEXT, month_day INTEGER, archived INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+             CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+             CREATE TABLE nodes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL);",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn add_rule(conn: &Connection, id: &str, kind: &str, days: &str, month_day: Option<i64>) {
+        conn.execute(
+            "INSERT INTO recurrences(id, title, project_id, node_id, kind, days, month_day, archived, created_at, updated_at)
+             VALUES(?1, 'write the daily note', NULL, NULL, ?2, ?3, ?4, 0, '2026-11-10T09:00:00', '2026-11-10T09:00:00')",
+            params![id, kind, days, month_day],
+        )
+        .unwrap();
+    }
+
+    fn count(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0)).unwrap()
+    }
+
+    #[test]
+    fn the_same_day_never_spawns_twice() {
+        let conn = seed_db();
+        add_rule(&conn, "r1", "daily", "", None);
+        assert_eq!(materialize(&conn, "2026-11-10").unwrap(), 1);
+        assert_eq!(materialize(&conn, "2026-11-10").unwrap(), 0, "second call must not duplicate");
+        assert_eq!(materialize(&conn, "2026-11-10").unwrap(), 0);
+        assert_eq!(count(&conn), 1);
+    }
+
+    #[test]
+    fn a_weekly_rule_only_fires_on_its_days() {
+        let conn = seed_db();
+        add_rule(&conn, "r2", "weekly", "1,3,5", None);
+        assert_eq!(materialize(&conn, "2026-11-09").unwrap(), 1, "monday");
+        assert_eq!(materialize(&conn, "2026-11-10").unwrap(), 0, "tuesday");
+        assert_eq!(materialize(&conn, "2026-11-11").unwrap(), 1, "wednesday");
+        assert_eq!(count(&conn), 2);
+    }
+
+    #[test]
+    fn a_paused_rule_stops_spawning() {
+        let conn = seed_db();
+        add_rule(&conn, "r3", "daily", "", None);
+        conn.execute("UPDATE recurrences SET archived = 1 WHERE id = 'r3'", []).unwrap();
+        assert_eq!(materialize(&conn, "2026-11-10").unwrap(), 0);
+        assert_eq!(count(&conn), 0);
+    }
+
+    #[test]
+    fn yesterday_left_over_is_spent_not_rolled_over() {
+        let conn = seed_db();
+        add_rule(&conn, "r4", "daily", "", None);
+        materialize(&conn, "2026-11-09").unwrap();
+        materialize(&conn, "2026-11-10").unwrap();
+        // Rolling into the 10th expires the 9th instead of pushing it forward.
+        rollover(&conn, "2026-11-10").unwrap();
+        let (bucket, plan, rolls): (String, String, i64) = conn
+            .query_row(
+                "SELECT bucket, plan_date, roll_count FROM tasks WHERE occurrence_date = '2026-11-09'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(bucket, "expired");
+        assert_eq!(plan, "2026-11-09");
+        assert_eq!(rolls, 0, "a missed run must not look like something dragged along");
+    }
 }

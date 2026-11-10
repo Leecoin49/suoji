@@ -139,6 +139,10 @@ pub fn run() {
             commands::delete_node,
             commands::complete_node,
             commands::reopen_node,
+            commands::list_recurrences,
+            commands::save_recurrence,
+            commands::archive_recurrence,
+            commands::delete_recurrence,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -137,6 +137,20 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
   deleting a project asks first — the tasks stay, they just go back to unclassified and
   its step chain goes with it.
 
+### Repeating tasks
+
+- The daily note, the bins, the monthly bill: **set it once and forget the schedule**. The
+  Repeat chip left of the input opens the rules — daily, certain weekdays, or a day of the
+  month (pick 31 and short months fall back to their last day).
+- It shows up in Today on its own, tagged Daily / Weekly / Monthly; ticking it, adding a note,
+  filing it under a project and step all work exactly like any other task.
+- **A skipped run is not debt**: when the day turns, yesterday's unfinished run simply expires —
+  it leaves today's list, is not counted as open, and never bumps the push-back counter.
+- The review counts **every finished run**: 250 daily notes in a year is 250 tasks, same as
+  anything else.
+- Pause, resume or delete a rule at any time; deleting removes today's unfinished run while
+  **everything already finished stays in the records**.
+
 ### Bilingual, built in
 
 - The whole UI ships in **English and Chinese**; switch it in Settings, the tray

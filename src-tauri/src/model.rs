@@ -31,6 +31,46 @@ pub struct Task {
     /// Tags attached to it, filled in by the caller (empty when not loaded).
     #[serde(default)]
     pub tag_ids: Vec<String>,
+    /// The repeating rule this row was spawned by; `None` for a one-off task.
+    #[serde(default)]
+    pub recurrence_id: Option<String>,
+    /// The day this particular run of the rule belongs to (YYYY-MM-DD).
+    #[serde(default)]
+    pub occurrence_date: Option<String>,
+}
+
+/// A repeating rule. It holds no work itself — it spawns one ordinary task per
+/// matching day, which is why every existing query keeps working untouched.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Recurrence {
+    pub id: String,
+    pub title: String,
+    pub project_id: Option<String>,
+    pub node_id: Option<String>,
+    /// "daily" | "weekly" | "monthly"
+    pub kind: String,
+    /// Weekly only: 1 = Monday … 7 = Sunday.
+    pub days: Vec<i64>,
+    /// Monthly only: 1..=31; 31 means "the last day" in shorter months.
+    pub month_day: Option<i64>,
+    pub archived: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecurrenceInput {
+    pub id: Option<String>,
+    pub title: String,
+    pub project_id: Option<String>,
+    pub node_id: Option<String>,
+    pub kind: String,
+    #[serde(default)]
+    pub days: Vec<i64>,
+    pub month_day: Option<i64>,
+    pub archived: Option<bool>,
 }
 
 /// A bucket of related work. One level deep on purpose (see spec 005 D1).
@@ -136,6 +176,32 @@ impl Task {
             project_id: row.get("project_id").unwrap_or(None),
             node_id: row.get("node_id").unwrap_or(None),
             tag_ids: Vec::new(),
+            recurrence_id: row.get("recurrence_id").unwrap_or(None),
+            occurrence_date: row.get("occurrence_date").unwrap_or(None),
+        })
+    }
+}
+
+impl Recurrence {
+    /// `days` is stored as "1,3,5"; anything unparsable simply means "no weekly days".
+    pub fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        let days: Option<String> = row.get("days").unwrap_or(None);
+        Ok(Recurrence {
+            id: row.get("id")?,
+            title: row.get("title")?,
+            project_id: row.get("project_id").unwrap_or(None),
+            node_id: row.get("node_id").unwrap_or(None),
+            kind: row.get("kind")?,
+            days: days
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|s| s.trim().parse::<i64>().ok())
+                .filter(|d| (1..=7).contains(d))
+                .collect(),
+            month_day: row.get("month_day").unwrap_or(None),
+            archived: row.get::<_, i64>("archived")? != 0,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
         })
     }
 }

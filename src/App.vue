@@ -11,6 +11,7 @@ import SettingsSheet from "@/components/SettingsSheet.vue";
 import HistorySheet from "@/components/HistorySheet.vue";
 import StatsSheet from "@/components/StatsSheet.vue";
 import ProjectSheet from "@/components/ProjectSheet.vue";
+import RecurringSheet from "@/components/RecurringSheet.vue";
 import ClassSheet from "@/components/ClassSheet.vue";
 import HelpSheet from "@/components/HelpSheet.vue";
 import UpdateSheet from "@/components/UpdateSheet.vue";
@@ -28,6 +29,7 @@ const settingsOpen = ref(false);
 const historyOpen = ref(false);
 const statsOpen = ref(false);
 const projectsOpen = ref(false);
+const recurringOpen = ref(false);
 const helpOpen = ref(false);
 const updateOpen = ref(false);
 const doneOpen = ref(true);
@@ -128,6 +130,7 @@ function openHistory() {
   updateOpen.value = false;
   statsOpen.value = false;
   projectsOpen.value = false;
+  recurringOpen.value = false;
   historyOpen.value = true;
 }
 
@@ -138,6 +141,7 @@ function openStats() {
   helpOpen.value = false;
   updateOpen.value = false;
   projectsOpen.value = false;
+  recurringOpen.value = false;
   statsOpen.value = true;
 }
 
@@ -148,7 +152,19 @@ function openProjects() {
   helpOpen.value = false;
   updateOpen.value = false;
   statsOpen.value = false;
+  recurringOpen.value = false;
   projectsOpen.value = true;
+}
+
+function openRecurring() {
+  closeOutOpen.value = false;
+  settingsOpen.value = false;
+  historyOpen.value = false;
+  helpOpen.value = false;
+  updateOpen.value = false;
+  statsOpen.value = false;
+  projectsOpen.value = false;
+  recurringOpen.value = true;
 }
 
 function openUpdate() {
@@ -192,6 +208,7 @@ function onKeydown(e: KeyboardEvent) {
     historyOpen.value = false;
     statsOpen.value = false;
     projectsOpen.value = false;
+    recurringOpen.value = false;
     updateOpen.value = false;
     if (store.classTask) store.closeClass();
     if (helpOpen.value) closeHelp();
@@ -204,6 +221,7 @@ async function boot() {
   await store.refresh();
   // Projects and tags are small; loading them once keeps every row's chips ready.
   void store.loadClasses();
+  void store.loadRecurrences();
   const v = store.view;
   if (v && !v.closedOut && v.tasks.length > 0 && dayjs().hour() >= 18) {
     closeOutOpen.value = true;
@@ -478,6 +496,7 @@ onUnmounted(() => {
       <HistorySheet v-if="historyOpen" @close="historyOpen = false" />
       <StatsSheet v-if="statsOpen" @close="statsOpen = false" />
       <ProjectSheet v-if="projectsOpen" @close="projectsOpen = false" />
+    <RecurringSheet v-if="recurringOpen" @close="recurringOpen = false" />
       <ClassSheet v-if="store.classTask" @close="store.closeClass()" />
       <HelpSheet v-if="helpOpen" @close="closeHelp" />
       <UpdateSheet v-if="updateOpen" @close="updateOpen = false" />
@@ -489,7 +508,7 @@ onUnmounted(() => {
       />
     </main>
 
-    <div v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !helpOpen && !updateOpen && !store.classTask" class="shrink-0 px-6">
+    <div v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !recurringOpen && !helpOpen && !updateOpen && !store.classTask" class="shrink-0 px-6">
       <button
         v-if="store.tab === 'today' && store.tasks.length"
         :class="
@@ -504,8 +523,9 @@ onUnmounted(() => {
     </div>
 
     <CaptureBar
-      v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !helpOpen && !updateOpen && !store.classTask"
+      v-if="!closeOutOpen && !historyOpen && !statsOpen && !projectsOpen && !recurringOpen && !helpOpen && !updateOpen && !store.classTask"
       ref="capture"
+      @recurring="openRecurring"
     />
   </div>
 </template>
