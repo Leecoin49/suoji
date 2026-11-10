@@ -142,7 +142,13 @@ pub fn list_inbox(db: State<Db>) -> Result<Vec<Task>, String> {
 
 /// target: "today" | "inbox" | "YYYY-MM-DD"
 #[tauri::command]
-pub fn add_task(db: State<Db>, title: String, target: Option<String>, due_at: Option<String>) -> Result<Task, String> {
+pub fn add_task(
+    db: State<Db>,
+    title: String,
+    target: Option<String>,
+    due_at: Option<String>,
+    project_id: Option<String>,
+) -> Result<Task, String> {
     let title = title.trim().to_string();
     if title.is_empty() {
         return Err("a task needs a title".into());
@@ -168,11 +174,20 @@ pub fn add_task(db: State<Db>, title: String, target: Option<String>, due_at: Op
 
     let id = Uuid::new_v4().to_string();
     let now = now_iso();
+    // Picking the project before typing is the one-shot path; it must not fail the
+    // capture when the project vanished in the meantime — the task simply lands
+    // unclassified.
+    let project_id = project_id.filter(|v| !v.is_empty()).filter(|pid| {
+        conn.query_row("SELECT 1 FROM projects WHERE id = ?1", params![pid], |r| r.get::<_, i64>(0))
+            .optional()
+            .map(|found| found.is_some())
+            .unwrap_or(false)
+    });
     conn.execute(
         "INSERT INTO tasks(id, title, note, bucket, plan_date, first_seen_date, due_at, done, \
-         done_at, roll_count, last_rolled_at, sort_order, deleted, created_at, updated_at) \
-         VALUES(?1, ?2, NULL, ?3, ?4, ?5, ?6, 0, NULL, 0, NULL, 0, 0, ?7, ?7)",
-        params![id, title, bucket, plan_date, first_seen, due_at, now],
+         done_at, roll_count, last_rolled_at, sort_order, deleted, created_at, updated_at, project_id) \
+         VALUES(?1, ?2, NULL, ?3, ?4, ?5, ?6, 0, NULL, 0, NULL, 0, 0, ?7, ?7, ?8)",
+        params![id, title, bucket, plan_date, first_seen, due_at, now, project_id],
     )
     .map_err(|e| e.to_string())?;
 

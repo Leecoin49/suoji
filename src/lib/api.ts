@@ -138,8 +138,8 @@ export const api = {
   deleteNode: (id: string) => invoke<Node[]>("delete_node", { id }),
   completeNode: (id: string) => invoke<Node[]>("complete_node", { id }),
   reopenNode: (id: string) => invoke<Node[]>("reopen_node", { id }),
-  addTask: (title: string, target?: string, dueAt?: string | null) =>
-    invoke<Task>("add_task", { title, target, dueAt: dueAt ?? null }),
+  addTask: (title: string, target?: string, dueAt?: string | null, projectId?: string | null) =>
+    invoke<Task>("add_task", { title, target, dueAt: dueAt ?? null, projectId: projectId ?? null }),
   setDone: (id: string, done: boolean, note?: string | null) =>
     invoke<Task>("set_done", { id, done, note: note ?? null }),
   setNote: (id: string, note: string | null) => invoke<Task>("set_note", { id, note }),

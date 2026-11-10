@@ -56,6 +56,8 @@ const dict = {
     "capture.today": "今天",
     "capture.tomorrow": "明天",
     "capture.dayAfter": "后天",
+    "capture.project": "项目",
+    "capture.projectNone": "不归项目",
 
     "task.note.placeholder": "做到哪了？明天接着做的线索",
     "task.note.add": "+ 备注",
@@ -336,6 +338,8 @@ const dict = {
     "capture.today": "today",
     "capture.tomorrow": "tomorrow",
     "capture.dayAfter": "day after",
+    "capture.project": "Project",
+    "capture.projectNone": "No project",
 
     "task.note.placeholder": "Where did you get to? A hint for tomorrow",
     "task.note.add": "+ note",
@@ -610,6 +614,7 @@ const content = {
       "区间除了 7/30/90 天，还有本月、本季、本年与自定义起止；切区间不跳页、不写库。",
       "「按项目 / 按标签」那张卡告诉你时间去哪了：每行一条占比条，点一行就把下面明细收窄到这一类；一件任务两个标签会各记一次。",
       "给任务归类：hover 任务行点「归类」，或直接点任务上的项目/标签筹码；项目名 20 字、标签名 16 字、一件最多 10 个标签。",
+      "录入前点一下输入框左边的「项目」：下一条就跟着进那个项目，事后不用回头归类；不选就是未分类。",
       "项目进度（标题栏文件夹）是一条竖向步骤链：打勾一步、下一步自动成为「当前」，点标题就地改名，链尾一路追加。",
     ] as string[],
   },
@@ -647,6 +652,7 @@ const content = {
       "Beyond 7/30/90 days there is this month, this quarter, this year and a custom start/end pair; switching never jumps pages and never writes to the database.",
       "The by project / by tag card shows where the time went: one share bar per row, click a row to narrow the details to that class; a task with two tags counts once under each.",
       "To classify: hover a task and pick Classify, or click the project/tag chips on the row itself. Project names up to 20 characters, tags up to 16, ten tags per task.",
+      "Pick the project chip left of the input before typing: the next line lands there, so you never re-file it afterwards. Leave it alone and the task stays unclassified.",
       "Project flow (the folder icon) is a vertical chain: tick a step and the next becomes Now, click a title to rename it in place, append at the bottom.",
     ] as string[],
   },

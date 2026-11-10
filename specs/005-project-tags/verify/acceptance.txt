@@ -43,3 +43,14 @@
 - UI：`verify/screens/delete-panel.png`（胶囊行右侧出现归档与删除两个图标）、`verify/screens/delete-confirm.png`（二次确认面板原文显示影响条数）。
 - 门禁：vue-tsc 干净、cargo fmt/clippy 干净、gate PASS 10、check-i18n PASS zh=257 en=257。
 - 未做：真人点「确认删除」验证不可逆路径（会动用户真实项目），留待用户自行尝试。
+
+## 增补 2026-11-10：录入时直接归项目
+
+- 命令层： `add_task` 增加第 4 个可选参数 project_id（追加在末尾，旧调用仍合法）；
+  项目不存在或为空串时静默降级为未分类，不让一次录入失败。证据： src-tauri/src/commands.rs。
+- 数据层： `verify/capture_project_check.py` 在真库副本上跑 6 条断言（项目保留 / 未选为 NULL /
+  旧项目 id 不影响写入 / 删项目后任务仍在且 project_id 置空 / 标签链接存活），全部通过。
+- 界面层： 输入框左侧的项目胶囊已渲染（ `screens/capture-project.png`），点击弹出选择面板
+  （ `screens/capture-project-picker.png`，首行「不归项目」，其后项目列表）。选完直接敲回车，
+  不需要再回头归类。
+- 待人工确认（一次点击即可）： 建一个项目 → 点胶囊选中 → 敲一条 → 确认该任务带项目。

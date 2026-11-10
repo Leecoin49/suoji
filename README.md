@@ -117,14 +117,16 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
   a **tag** is the kind of work (drafting, chasing quotes, meetings…). One project per
   task, up to 10 tags; project names up to 20 characters, tag names up to 16.
 - Filing takes one click: hover a task for **File**, or click the project/tag chips on
-  the row itself.
+  the row itself. When capturing, the project chip left of the input does it up front —
+  pick it once and the next line lands in that project.
 - **Project flow** (the folder icon in the title bar) is a vertical chain of steps: tick
   one and it fades and strikes through, the next becomes **Now**; click a title to rename
   it in place, append at the bottom, reopen anything you ticked by mistake.
 - The chain is linear on purpose — no dragging, no columns, no subtask tree. It answers
   exactly one question: what is next.
-- Archiving a project only greys it out; deleting a tag also unhooks it from tasks; a
-  project can be archived but not deleted.
+- Archiving a project only greys it out; deleting a tag also unhooks it from tasks;
+  deleting a project asks first — the tasks stay, they just go back to unclassified and
+  its step chain goes with it.
 
 ### Bilingual, built in
 
