@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
-import { Check, Inbox, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { AlignLeft, Check, Inbox, Pencil, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
 import type { Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
 import { heldDays, timeLabel } from "@/lib/utils";
@@ -12,6 +12,54 @@ const store = useDayStore();
 const editing = ref(false);
 const draft = ref("");
 const noteEl = ref<HTMLTextAreaElement | null>(null);
+
+/* Renaming in place: click the title, type, Enter. */
+const editingTitle = ref(false);
+const titleDraft = ref("");
+const titleEl = ref<HTMLInputElement | null>(null);
+
+function startTitle() {
+  titleDraft.value = props.task.title;
+  editingTitle.value = true;
+  nextTick(() => titleEl.value?.select());
+}
+
+async function commitTitle() {
+  if (!editingTitle.value) return;
+  editingTitle.value = false;
+  const v = titleDraft.value.trim().replace(/\s+/g, " ");
+  if (!v || v === props.task.title) return;
+  await store.rename(props.task.id, v);
+}
+
+/* Right click: the same verbs as the hover buttons, without hovering. */
+const menu = ref(false);
+const menuAt = ref({ x: 0, y: 0 });
+
+function openMenu(e: MouseEvent) {
+  e.preventDefault();
+  menuAt.value = {
+    x: Math.min(e.clientX, window.innerWidth - 172),
+    y: Math.min(e.clientY, window.innerHeight - 200),
+  };
+  menu.value = true;
+}
+
+function closeMenu() {
+  menu.value = false;
+}
+
+function act(fn: () => unknown) {
+  menu.value = false;
+  void fn();
+}
+
+function onKey(e: KeyboardEvent) {
+  if (e.key === "Escape") menu.value = false;
+}
+
+onMounted(() => window.addEventListener("keydown", onKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 function startNote() {
   draft.value = props.task.note ?? "";
@@ -43,6 +91,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
   <div
     class="group relative flex items-start gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-card"
     :class="task.done && 'opacity-50'"
+    @contextmenu="openMenu"
   >
     <!-- Checkbox -->
     <button
@@ -62,12 +111,25 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         <span v-if="task.dueAt" class="shrink-0 font-display text-[13px] tabular-nums text-accent">
           {{ timeLabel(task) }}
         </span>
-        <p
-          class="truncate text-[14.5px] leading-6 transition-all"
+        <input
+          v-if="editingTitle"
+          ref="titleEl"
+          v-model="titleDraft"
+          class="min-w-0 flex-1 rounded-lg border border-accent/40 bg-card px-1.5 text-[14.5px] leading-6 text-ink"
+          :placeholder="t('task.title.placeholder')"
+          @blur="commitTitle"
+          @keydown.enter.prevent="commitTitle"
+          @keydown.esc.prevent="editingTitle = false"
+        />
+        <button
+          v-else
+          class="min-w-0 truncate text-left text-[14.5px] leading-6 transition-all"
           :class="task.done ? 'text-ink-faint line-through' : 'text-ink'"
+          :title="t('task.menu.rename')"
+          @click="startTitle"
         >
           {{ task.title }}
-        </p>
+        </button>
       </div>
 
       <!-- Where it belongs (spec 005): project + tags, one click opens the sheet -->
@@ -175,11 +237,60 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         </button>
       </div>
     </div>
+
+    <!-- Right-click menu (teleported so the scroll container cannot clip it) -->
+    <Teleport to="body">
+      <div v-if="menu" class="fixed inset-0 z-40" @click="closeMenu" @contextmenu.prevent="closeMenu" />
+      <div
+        v-if="menu"
+        class="fixed z-50 w-[168px] overflow-hidden rounded-xl border border-line bg-card py-1 shadow-[0_10px_28px_rgba(0,0,0,0.12)]"
+        :style="{ left: menuAt.x + 'px', top: menuAt.y + 'px' }"
+        @mousedown.stop
+      >
+        <button class="menu-row" @click="act(startTitle)">
+          <Pencil :size="12.5" :stroke-width="1.9" />{{ t("task.menu.rename") }}
+        </button>
+        <button class="menu-row" @click="act(startNote)">
+          <AlignLeft :size="12.5" :stroke-width="1.9" />{{ t("task.menu.note") }}
+        </button>
+        <button class="menu-row" @click="act(() => store.openClass(task))">
+          <TagIcon :size="12.5" :stroke-width="1.9" />{{ t("stats.assign") }}
+        </button>
+        <template v-if="!task.done">
+          <button class="menu-row" @click="act(() => store.tomorrow(task.id))">
+            <Sunrise :size="12.5" :stroke-width="1.9" />{{ t("task.act.tomorrow") }}
+          </button>
+          <button class="menu-row" @click="act(() => store.toInbox(task.id))">
+            <Inbox :size="12.5" :stroke-width="1.9" />{{ t("task.act.inbox") }}
+          </button>
+        </template>
+        <button class="menu-row mt-0.5 border-t border-line-soft pt-1.5 text-warn hover:text-warn" @click="act(() => store.drop(task.id))">
+          <Trash2 :size="12.5" :stroke-width="1.9" />{{ t("task.act.drop") }}
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 textarea {
   field-sizing: content;
+}
+
+.menu-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  transition: background-color 120ms ease;
+}
+
+.menu-row:hover {
+  background: var(--color-paper-deep);
 }
 </style>

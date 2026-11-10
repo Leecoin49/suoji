@@ -143,6 +143,7 @@ export const api = {
     invoke<Task>("add_task", { title, target, dueAt: dueAt ?? null, projectId: projectId ?? null }),
   setDone: (id: string, done: boolean, note?: string | null) =>
     invoke<Task>("set_done", { id, done, note: note ?? null }),
+  setTitle: (id: string, title: string) => invoke<Task>("set_title", { id, title }),
   setNote: (id: string, note: string | null) => invoke<Task>("set_note", { id, note }),
   pushToTomorrow: (id: string) => invoke<void>("push_to_tomorrow", { id }),
   backToInbox: (id: string) => invoke<void>("back_to_inbox", { id }),

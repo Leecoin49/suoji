@@ -25,6 +25,7 @@ fn tomorrow() -> String {
 }
 
 const INVALID_RANGE: &str = "stats: invalid range";
+const TASK_TITLE_MAX: usize = 200;
 
 fn load(conn: &Connection, id: &str) -> rusqlite::Result<Task> {
     let mut task = conn.query_row(&format!("{SELECT} WHERE id = ?1"), params![id], Task::from_row)?;
@@ -345,6 +346,23 @@ pub fn set_done(db: State<Db>, id: String, done: bool, note: Option<String>) -> 
 pub fn set_note(db: State<Db>, id: String, note: Option<String>) -> Result<Task, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute("UPDATE tasks SET note = ?2, updated_at = ?3 WHERE id = ?1", params![id, note, now_iso()])
+        .map_err(|e| e.to_string())?;
+    load(&conn, &id).map_err(|e| e.to_string())
+}
+
+/// Rename a task in place.
+#[tauri::command]
+pub fn set_title(db: State<Db>, id: String, title: String) -> Result<Task, String> {
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    if title.is_empty() {
+        return Err("a task needs a title".into());
+    }
+    if title.chars().count() > TASK_TITLE_MAX {
+        return Err("title too long".into());
+    }
+
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute("UPDATE tasks SET title = ?2, updated_at = ?3 WHERE id = ?1", params![id, title, now_iso()])
         .map_err(|e| e.to_string())?;
     load(&conn, &id).map_err(|e| e.to_string())
 }

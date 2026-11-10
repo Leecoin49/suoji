@@ -111,6 +111,7 @@ pub fn run() {
             commands::list_project_tasks,
             commands::add_task,
             commands::set_done,
+            commands::set_title,
             commands::set_note,
             commands::list_done_history,
             commands::push_to_tomorrow,

@@ -63,6 +63,9 @@ const dict = {
 
     "task.note.placeholder": "做到哪了？明天接着做的线索",
     "task.note.add": "+ 备注",
+    "task.menu.rename": "改名",
+    "task.menu.note": "写备注",
+    "task.title.placeholder": "任务标题",
     "task.badge.held": "挂了 {n} 天",
     "task.badge.rolled": "挪过 {n} 次",
     "task.badge.rolledHint": "这件事之前被往后挪了 {n} 次",
@@ -350,6 +353,9 @@ const dict = {
 
     "task.note.placeholder": "Where did you get to? A hint for tomorrow",
     "task.note.add": "+ note",
+    "task.menu.rename": "Rename",
+    "task.menu.note": "Add a note",
+    "task.title.placeholder": "Task title",
     "task.badge.held": "{n}d stuck",
     "task.badge.rolled": "moved {n}×",
     "task.badge.rolledHint": "Pushed back {n} times before",

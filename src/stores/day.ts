@@ -138,6 +138,11 @@ export const useDayStore = defineStore("day", () => {
     await refresh();
   }
 
+  async function rename(id: string, title: string) {
+    await api.setTitle(id, title);
+    await refresh();
+  }
+
   /** "Back to today" from the records sheet: un-complete and re-plan for today. */
   async function undo(id: string) {
     await api.setDone(id, false);
@@ -208,6 +213,7 @@ export const useDayStore = defineStore("day", () => {
     toInbox,
     drop,
     setNote,
+    rename,
     undo,
     promote,
     closeOut,
