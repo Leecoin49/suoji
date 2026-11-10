@@ -143,6 +143,7 @@ pub fn run() {
             commands::save_recurrence,
             commands::archive_recurrence,
             commands::delete_recurrence,
+            commands::set_deadline,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -18,7 +18,7 @@ import UpdateSheet from "@/components/UpdateSheet.vue";
 import { useDayStore } from "@/stores/day";
 import { useUpdateStore } from "@/stores/update";
 import { api, type Task } from "@/lib/api";
-import { cn, heldDays } from "@/lib/utils";
+import { cn, deadlineOf, heldDays } from "@/lib/utils";
 import { applyLocale, dayLabel, greeting, t, weekday } from "@/lib/i18n";
 
 const store = useDayStore();
@@ -104,6 +104,14 @@ const homeSections = computed<HomeSection[]>(() => {
 
 function toggleSection(key: string) {
   collapsed.value = { ...collapsed.value, [key]: !collapsed.value[key] };
+}
+
+/** How many lines in this group have already blown past their deadline. */
+function overdueCount(tasks: Task[]) {
+  return tasks.filter((task) => {
+    const due = deadlineOf(task);
+    return due !== null && due.kind === "over";
+  }).length;
 }
 
 const summary = computed(() => {  const n = store.tasks.length;
@@ -385,6 +393,12 @@ onUnmounted(() => {
                     <span class="text-line">·</span>
                     <span class="min-w-0 truncate text-[11px] text-ink-soft">{{ sec.step }}</span>
                   </template>
+                  <span
+                    v-if="overdueCount(sec.tasks)"
+                    class="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+                  >
+                    {{ t("home.overdue", { n: overdueCount(sec.tasks) }) }}
+                  </span>
                   <span class="ml-auto shrink-0 text-[10.5px] tabular-nums text-ink-faint">
                     {{ t("home.groupCount", { n: sec.tasks.length }) }}
                   </span>

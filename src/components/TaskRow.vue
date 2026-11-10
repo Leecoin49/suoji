@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { AlignLeft, Check, Inbox, Pencil, Repeat, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
+import { AlignLeft, CalendarClock, CalendarDays, Check, Inbox, Pencil, Repeat, Sunrise, Tag as TagIcon, Trash2 } from "lucide-vue-next";
 import type { Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
-import { heldDays, timeLabel } from "@/lib/utils";
+import { deadlineInput, deadlineOf, heldDays, timeLabel } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 const props = defineProps<{ task: Task; showActions?: boolean }>();
@@ -75,6 +75,63 @@ async function commitNote() {
 }
 
 const days = computed(() => heldDays(props.task));
+
+/* A real deadline, as opposed to "sometime today" (spec 009). */
+const deadline = computed(() => deadlineOf(props.task));
+const deadlineText = computed(() => {
+  const d = deadline.value;
+  if (!d) return "";
+  if (d.kind === "over") return t("task.deadline.overdue", { n: -d.days });
+  if (d.kind === "today") return t("task.deadline.today", { t: d.time || "24:00" });
+  if (d.kind === "tomorrow") return t("task.deadline.tomorrow", { t: d.time || "24:00" });
+  return t("task.deadline.later", { d: d.date, t: d.time || "24:00" });
+});
+const deadlineTone = computed(() => {
+  const kind = deadline.value?.kind;
+  if (kind === "over") return "bg-warn-soft text-warn";
+  if (kind === "today") return "bg-accent-soft text-accent";
+  if (kind === "tomorrow") return "bg-paper-deep text-ink-soft";
+  return "bg-paper-deep text-ink-faint";
+});
+
+const editingDeadline = ref(false);
+const deadlineDraft = ref("");
+const deadlineEl = ref<HTMLInputElement | null>(null);
+
+function startDeadline() {
+  deadlineDraft.value = deadlineInput(props.task.deadline, props.task.planDate);
+  editingDeadline.value = true;
+  nextTick(() => deadlineEl.value?.focus());
+}
+
+async function commitDeadline() {
+  if (!editingDeadline.value) return;
+  editingDeadline.value = false;
+  const v = deadlineDraft.value.trim();
+  if (!v) return;
+  const current = props.task.deadline ? props.task.deadline.slice(0, 16) : "";
+  if (v === current) return;
+  await store.setDeadline(props.task.id, v);
+}
+
+/* Moving a planned task to another day. */
+const editingDate = ref(false);
+const dateDraft = ref("");
+const dateEl = ref<HTMLInputElement | null>(null);
+
+function startDate() {
+  dateDraft.value = (props.task.planDate ?? "").slice(0, 10);
+  editingDate.value = true;
+  nextTick(() => dateEl.value?.focus());
+}
+
+async function commitDate() {
+  if (!editingDate.value) return;
+  editingDate.value = false;
+  const v = dateDraft.value.trim();
+  if (!v || v === (props.task.planDate ?? "")) return;
+  await store.moveTo(props.task.id, v);
+}
 /** Chips are cheap, but three is enough on a row. */
 const project = computed(() => store.projects.find((p) => p.id === props.task.projectId) ?? null);
 
@@ -142,7 +199,7 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
 
       <!-- Where it belongs (spec 005): project + tags, one click opens the sheet -->
       <div
-        v-if="project || tagNames.length || task.recurrenceId"
+        v-if="project || tagNames.length || task.recurrenceId || deadline"
         class="mt-1 flex flex-wrap items-center gap-1"
       >
         <span
@@ -153,6 +210,16 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
           <Repeat :size="9" :stroke-width="2.2" />
           {{ repeatLabel }}
         </span>
+        <button
+          v-if="deadline && !task.done"
+          class="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium transition-colors"
+          :class="deadlineTone"
+          :title="t('task.menu.deadline')"
+          @click="startDeadline"
+        >
+          <CalendarClock :size="9" :stroke-width="2.2" />
+          {{ deadlineText }}
+        </button>
         <button
           v-if="project"
           class="max-w-[140px] truncate rounded-full bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent transition-colors hover:bg-accent/20"
@@ -180,6 +247,35 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
       </div>
 
       <!-- Note: where did it get to -->
+      <div v-if="editingDeadline" class="mt-1.5 flex items-center gap-1.5">
+        <input
+          ref="deadlineEl"
+          v-model="deadlineDraft"
+          type="datetime-local"
+          class="rounded-lg border border-accent/40 bg-card px-2 py-1 text-[12px] text-ink"
+          @keydown.enter.prevent="commitDeadline"
+          @keydown.esc.prevent="editingDeadline = false"
+          @blur="commitDeadline"
+        />
+        <button
+          v-if="task.deadline"
+          class="text-[11px] text-ink-faint hover:text-warn"
+          @mousedown.prevent="editingDeadline = false; store.setDeadline(task.id, null)"
+        >
+          {{ t("task.deadline.clear") }}
+        </button>
+      </div>
+      <div v-if="editingDate" class="mt-1.5 flex items-center gap-1.5">
+        <input
+          ref="dateEl"
+          v-model="dateDraft"
+          type="date"
+          class="rounded-lg border border-accent/40 bg-card px-2 py-1 text-[12px] text-ink"
+          @keydown.enter.prevent="commitDate"
+          @keydown.esc.prevent="editingDate = false"
+          @blur="commitDate"
+        />
+      </div>
       <textarea
         v-if="editing"
         ref="noteEl"
@@ -272,6 +368,14 @@ const moreTags = computed(() => Math.max(0, tagNames.value.length - shownTags.va
         <button class="menu-row" @click="act(() => store.openClass(task))">
           <TagIcon :size="12.5" :stroke-width="1.9" />{{ t("stats.assign") }}
         </button>
+        <template v-if="!task.done">
+          <button class="menu-row" @click="act(startDeadline)">
+            <CalendarClock :size="12.5" :stroke-width="1.9" />{{ t("task.menu.deadline") }}
+          </button>
+          <button class="menu-row" @click="act(startDate)">
+            <CalendarDays :size="12.5" :stroke-width="1.9" />{{ t("task.menu.reschedule") }}
+          </button>
+        </template>
         <template v-if="!task.done">
           <button class="menu-row" @click="act(() => store.tomorrow(task.id))">
             <Sunrise :size="12.5" :stroke-width="1.9" />{{ t("task.act.tomorrow") }}

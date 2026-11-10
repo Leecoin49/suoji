@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 pub struct Db(pub Mutex<Connection>);
 
 /// Bumped whenever `migrate` has real work to do. `0` = the schema shipped before 005.
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS tasks (
@@ -104,6 +104,14 @@ CREATE INDEX IF NOT EXISTS idx_recurrences_active ON recurrences(archived);
 /// Applied in order; every entry is idempotent, so they are re-asserted on each start.
 const MIGRATIONS: &[&str] = &[MIGRATION_1, MIGRATION_2, MIGRATION_3];
 
+/// 4: a real deadline on a task.
+///
+/// `due_at` only carries a clock time inside its day ("15:30"); a deadline needs a
+/// date too, so it gets a column of its own instead of overloading that one.
+const MIGRATION_4: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks(deadline);
+"#;
+
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
@@ -153,6 +161,10 @@ fn migrate(conn: &Connection, path: &std::path::Path) -> rusqlite::Result<()> {
         if !has_column(conn, "tasks", "occurrence_date")? {
             conn.execute("ALTER TABLE tasks ADD COLUMN occurrence_date TEXT", [])?;
         }
+        if !has_column(conn, "tasks", "deadline")? {
+            conn.execute("ALTER TABLE tasks ADD COLUMN deadline TEXT", [])?;
+        }
+        conn.execute_batch(MIGRATION_4)?;
         // One row per rule per day; the generator leans on this instead of a read-then-write check.
         conn.execute_batch(
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_tasks_occurrence \

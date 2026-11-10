@@ -37,6 +37,10 @@ pub struct Task {
     /// The day this particular run of the rule belongs to (YYYY-MM-DD).
     #[serde(default)]
     pub occurrence_date: Option<String>,
+    /// When it actually has to be handed in (YYYY-MM-DDTHH:MM, local). Unlike
+    /// `due_at` this can point at any day, and being past it is a real problem.
+    #[serde(default)]
+    pub deadline: Option<String>,
 }
 
 /// A repeating rule. It holds no work itself — it spawns one ordinary task per
@@ -178,6 +182,7 @@ impl Task {
             tag_ids: Vec::new(),
             recurrence_id: row.get("recurrence_id").unwrap_or(None),
             occurrence_date: row.get("occurrence_date").unwrap_or(None),
+            deadline: row.get("deadline").unwrap_or(None),
         })
     }
 }

@@ -24,6 +24,8 @@ export interface Task {
   recurrenceId: string | null;
   /** Which day of the rule this run belongs to. */
   occurrenceDate: string | null;
+  /** Hand-in deadline, `YYYY-MM-DDTHH:MM`; unlike `dueAt` it carries a date. */
+  deadline: string | null;
 }
 
 /** A bucket of related work. One level deep on purpose (spec 005 D1). */
@@ -183,6 +185,7 @@ export const api = {
     invoke<Task>("set_done", { id, done, note: note ?? null }),
   setTitle: (id: string, title: string) => invoke<Task>("set_title", { id, title }),
   setNote: (id: string, note: string | null) => invoke<Task>("set_note", { id, note }),
+  setDeadline: (id: string, deadline: string | null) => invoke<Task>("set_deadline", { id, deadline }),
   pushToTomorrow: (id: string) => invoke<void>("push_to_tomorrow", { id }),
   backToInbox: (id: string) => invoke<void>("back_to_inbox", { id }),
   moveToDate: (id: string, date: string) => invoke<void>("move_to_date", { id, date }),

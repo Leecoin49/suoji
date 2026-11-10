@@ -1,7 +1,8 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
-import { CornerDownLeft, FolderTree, Plus, Repeat } from "lucide-vue-next";
+import { ChevronRight, CornerDownLeft, FolderTree, Plus, Repeat } from "lucide-vue-next";
 import { PROJECT_NAME_MAX, normalizeName } from "@/lib/classes";
+import { api, type Node, type Project } from "@/lib/api";
 import dayjs from "dayjs";
 import { parseCapture } from "@/lib/parse";
 import { useDayStore } from "@/stores/day";
@@ -24,6 +25,67 @@ const grabName = (el: unknown) => {
 const emit = defineEmits<{ (e: "recurring"): void }>();
 
 const captureProject = computed(() => store.projects.find((p) => p.id === store.captureProjectId) ?? null);
+
+/* Steps of the project being browsed in the panel (spec 009: 项目 → 步骤 → 任务). */
+const steps = ref<Node[]>([]);
+const openSteps = ref<string | null>(null);
+const creatingStep = ref(false);
+const stepName = ref("");
+let stepInput: HTMLInputElement | null = null;
+const grabStep = (el: unknown) => {
+  stepInput = (el as HTMLInputElement | null) ?? null;
+};
+const captureStep = computed(() => steps.value.find((n) => n.id === store.captureNodeId) ?? null);
+
+async function loadSteps(projectId: string | null) {
+  steps.value = projectId ? await api.listNodes(projectId) : [];
+}
+
+async function openProjectSteps(p: Project) {
+  openSteps.value = openSteps.value === p.id ? null : p.id;
+  creatingStep.value = false;
+  stepName.value = "";
+  if (openSteps.value) {
+    skipCommit = true;
+    creating.value = false;
+    await loadSteps(p.id);
+  }
+}
+
+function pickStep(projectId: string, stepId: string | null) {
+  skipCommit = true;
+  store.setCaptureProject(projectId);
+  store.setCaptureStep(stepId);
+  pickerOpen.value = false;
+  openSteps.value = null;
+  inputEl.value?.focus();
+}
+
+function startStep(projectId: string) {
+  skipCommit = false;
+  openSteps.value = projectId;
+  creatingStep.value = true;
+  stepName.value = "";
+  void nextTick(() => stepInput?.focus());
+}
+
+async function commitStep(projectId: string) {
+  if (skipCommit) {
+    skipCommit = false;
+    return;
+  }
+  const name = stepName.value.trim();
+  if (!name) {
+    creatingStep.value = false;
+    return;
+  }
+  const saved = await api.saveNode({ projectId, title: name, note: null });
+  creatingStep.value = false;
+  stepName.value = "";
+  await loadSteps(projectId);
+  const made = saved.find((n) => n.title === name);
+  if (made) pickStep(projectId, made.id);
+}
 
 onMounted(() => {
   void store.loadClasses();
@@ -174,7 +236,9 @@ defineExpose({ focus });
           @click.stop="togglePicker()"
         >
           <FolderTree :size="11" :stroke-width="2" class="shrink-0" />
-          <span class="truncate">{{ captureProject?.name ?? t("capture.project") }}</span>
+          <span class="truncate">
+            {{ captureProject ? (captureStep ? `${captureProject.name} · ${captureStep.title}` : captureProject.name) : t("capture.projectNone") }}
+          </span>
         </button>
 
         <div
@@ -200,11 +264,58 @@ defineExpose({ focus });
                   ? 'text-ink-faint/70'
                   : 'text-ink-soft'
             "
-            @click="pickProject(p.id)"
+            @click="openProjectSteps(p)"
           >
             <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
             <span v-if="p.archived" class="shrink-0 text-[10px] text-ink-faint">·</span>
+            <ChevronRight
+              :size="11"
+              :stroke-width="2"
+              class="shrink-0 text-ink-faint transition-transform"
+              :class="openSteps === p.id && 'rotate-90'"
+            />
           </button>
+
+          <!-- Its steps, revealed in place: 整个项目 / each step / 新建步骤 -->
+          <div v-if="openSteps" class="mt-0.5 rounded-lg bg-paper-deep/50 p-0.5">
+            <button
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11.5px] text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink-soft"
+              @click="pickStep(openSteps, null)"
+            >
+              {{ t("capture.stepAll") }}
+            </button>
+            <button
+              v-for="n in steps"
+              :key="n.id"
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11.5px] transition-colors hover:bg-paper-deep"
+              :class="store.captureNodeId === n.id ? 'text-accent' : 'text-ink-soft'"
+              @click="pickStep(openSteps, n.id)"
+            >
+              <span class="h-1 w-1 shrink-0 rounded-full" :class="n.done ? 'bg-accent' : 'bg-line'" />
+              <span class="min-w-0 flex-1 truncate">{{ n.title }}</span>
+            </button>
+            <div v-if="creatingStep" class="px-1 pb-1">
+              <input
+                :ref="grabStep"
+                v-model="stepName"
+                maxlength="40"
+                class="w-full rounded-md border border-line bg-paper px-2 py-1 text-[11.5px] text-ink outline-none focus:border-accent/45"
+                :placeholder="t('capture.newStep')"
+                spellcheck="false"
+                @blur="commitStep(openSteps)"
+                @keydown.enter.prevent="commitStep(openSteps)"
+                @keydown.esc.stop.prevent="skipCommit = true; creatingStep = false"
+              />
+            </div>
+            <button
+              v-else
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11.5px] text-ink-faint transition-colors hover:bg-paper-deep hover:text-accent"
+              @click="startStep(openSteps)"
+            >
+              <Plus :size="10" :stroke-width="2.2" class="shrink-0" />
+              {{ t("capture.newStep") }}
+            </button>
+          </div>
 
           <div class="my-1 h-px bg-line-soft" />
 

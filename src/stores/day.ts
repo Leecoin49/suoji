@@ -25,6 +25,8 @@ export const useDayStore = defineStore("day", () => {
   const classTask = ref<Task | null>(null);
   /** Project the capture bar attaches to new tasks; in-memory only, never persisted. */
   const captureProjectId = ref<string | null>(null);
+  /** Step inside that project (spec 009); `null` means the project itself. */
+  const captureNodeId = ref<string | null>(null);
   let classesLoaded = false;
 
   const tasks = computed(() => view.value?.tasks ?? []);
@@ -127,12 +129,30 @@ export const useDayStore = defineStore("day", () => {
   }
 
   async function add(title: string, target?: string, dueAt?: string | null) {
-    await api.addTask(title, target, dueAt, captureProjectId.value);
+    const made = await api.addTask(title, target, dueAt, captureProjectId.value);
+    // The step is a second, cheap hop: `add_task` keeps its old signature so no
+    // other caller has to change.
+    if (captureNodeId.value) await api.setTaskNode(made.id, captureNodeId.value);
     await refresh();
   }
 
   function setCaptureProject(id: string | null) {
     captureProjectId.value = id;
+    if (!id) captureNodeId.value = null;
+  }
+
+  function setCaptureStep(id: string | null) {
+    captureNodeId.value = id;
+  }
+
+  async function setDeadline(id: string, deadline: string | null) {
+    await api.setDeadline(id, deadline);
+    await refresh();
+  }
+
+  async function moveTo(id: string, date: string) {
+    await api.moveToDate(id, date);
+    await refresh();
   }
 
   async function toggle(t: Task, note?: string | null) {
@@ -215,6 +235,7 @@ export const useDayStore = defineStore("day", () => {
     recurrences,
     classTask,
     captureProjectId,
+    captureNodeId,
     tasks,
     doneToday,
     suggestions,
@@ -236,6 +257,9 @@ export const useDayStore = defineStore("day", () => {
     toggleRecurrence,
     removeRecurrence,
     setCaptureProject,
+    setCaptureStep,
+    setDeadline,
+    moveTo,
     add,
     toggle,
     tomorrow,

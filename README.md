@@ -151,6 +151,16 @@ A plain-text mini syntax handles the rest (English and Chinese tokens both work)
 - Pause, resume or delete a rule at any time; deleting removes today's unfinished run while
   **everything already finished stays in the records**.
 
+### Deadlines, rescheduling and steps
+
+- A task can carry a real **deadline** (date + time), separate from the day you plan to do it:
+  right-click → *Set deadline*, or click the chip once it exists. Overdue lines read
+  "2d overdue" in warn, today's read "due 18:00 today" in accent, and a group header counts them.
+- Right-click → *Reschedule* moves a planned task to any other day; pushing it into the future
+  counts as a push-back, exactly like the sunrise button.
+- The project chip in the capture bar now opens **steps**: pick a whole project, one of its
+  steps, or create a step on the spot — the line lands filed there.
+
 ### Bilingual, built in
 
 - The whole UI ships in **English and Chinese**; switch it in Settings, the tray

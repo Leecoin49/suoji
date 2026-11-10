@@ -3,7 +3,7 @@ use crate::model::{
     Classes, DayView, DoneEntry, Node, NodeInput, Project, ProjectImpact, ProjectInput, Recurrence, RecurrenceInput,
     RollEntry, Settings, StatsRaw, StatsSpan, Tag, Task,
 };
-use chrono::{Datelike, Duration, Local, NaiveDate};
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
 use tauri::{Manager, State};
@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 const SELECT: &str = "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
      roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
-     occurrence_date FROM tasks";
+     occurrence_date, deadline FROM tasks";
 
 fn today() -> String {
     Local::now().format("%Y-%m-%d").to_string()
@@ -180,7 +180,7 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
          roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
-         occurrence_date FROM tasks \
+         occurrence_date, deadline FROM tasks \
          WHERE done = 1 AND deleted = 0 AND done_at LIKE ?1 ORDER BY done_at DESC",
     )?;
     let mut done_today: Vec<Task> =
@@ -189,7 +189,7 @@ pub fn build_day(conn: &Connection) -> rusqlite::Result<DayView> {
     let mut stmt = conn.prepare(
         "SELECT id, title, note, bucket, plan_date, first_seen_date, due_at, done, done_at, \
          roll_count, last_rolled_at, created_at, updated_at, project_id, node_id, recurrence_id, \
-         occurrence_date FROM tasks \
+         occurrence_date, deadline FROM tasks \
          WHERE done = 0 AND deleted = 0 AND bucket = 'inbox' \
          ORDER BY updated_at ASC LIMIT 3",
     )?;
@@ -459,6 +459,35 @@ pub fn set_title(db: State<Db>, id: String, title: String) -> Result<Task, Strin
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute("UPDATE tasks SET title = ?2, updated_at = ?3 WHERE id = ?1", params![id, title, now_iso()])
         .map_err(|e| e.to_string())?;
+    load(&conn, &id).map_err(|e| e.to_string())
+}
+
+/// "2026-11-20T18:00" from the date+time input, "2026-11-20 18:00" by hand,
+/// or a bare "2026-11-20" meaning the end of that day.
+fn normalize_deadline(raw: &str) -> Result<String, String> {
+    let normal = raw.trim().replace(' ', "T");
+    let at = NaiveDateTime::parse_from_str(&normal, "%Y-%m-%dT%H:%M").or_else(|_| {
+        NaiveDate::parse_from_str(&normal, "%Y-%m-%d").map(|d| d.and_hms_opt(23, 59, 0).expect("23:59 is a valid time"))
+    });
+    at.map(|at| at.format("%Y-%m-%dT%H:%M").to_string()).map_err(|_| "invalid deadline".to_string())
+}
+
+/// Set or clear the deadline. `None` / blank clears it.
+#[tauri::command]
+pub fn set_deadline(db: State<Db>, id: String, deadline: Option<String>) -> Result<Task, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let value = deadline.map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    match value {
+        Some(raw) => {
+            let at = normalize_deadline(&raw)?;
+            conn.execute("UPDATE tasks SET deadline = ?2, updated_at = ?3 WHERE id = ?1", params![id, at, now_iso()])
+                .map_err(|e| e.to_string())?;
+        }
+        None => {
+            conn.execute("UPDATE tasks SET deadline = NULL, updated_at = ?2 WHERE id = ?1", params![id, now_iso()])
+                .map_err(|e| e.to_string())?;
+        }
+    }
     load(&conn, &id).map_err(|e| e.to_string())
 }
 
@@ -1136,6 +1165,15 @@ mod tests {
     }
 
     #[test]
+    fn deadline_accepts_a_date_time_or_a_bare_date() {
+        assert_eq!(normalize_deadline("2026-11-20T18:00").unwrap(), "2026-11-20T18:00");
+        assert_eq!(normalize_deadline("2026-11-20 18:00").unwrap(), "2026-11-20T18:00");
+        assert_eq!(normalize_deadline(" 2026-11-20 ").unwrap(), "2026-11-20T23:59");
+        assert!(normalize_deadline("someday").is_err());
+        assert!(normalize_deadline("2026-13-01").is_err());
+    }
+
+    #[test]
     fn daily_fires_every_day() {
         let r = rule("daily", vec![], None);
         assert!(fires_on(&r, day(2026, 11, 9)));
@@ -1194,7 +1232,8 @@ mod materialize_tests {
                 done_at TEXT, roll_count INTEGER NOT NULL DEFAULT 0, last_rolled_at TEXT,
                 sort_order INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-                project_id TEXT, node_id TEXT, recurrence_id TEXT, occurrence_date TEXT);
+                project_id TEXT, node_id TEXT, recurrence_id TEXT, occurrence_date TEXT,
+                deadline TEXT);
              CREATE UNIQUE INDEX ux_tasks_occurrence
                 ON tasks(recurrence_id, occurrence_date) WHERE recurrence_id IS NOT NULL;
              CREATE TABLE recurrences (
