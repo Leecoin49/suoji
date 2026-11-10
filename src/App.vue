@@ -29,6 +29,7 @@ const settingsOpen = ref(false);
 const historyOpen = ref(false);
 const statsOpen = ref(false);
 const projectsOpen = ref(false);
+const projectFocus = ref<string | null>(null);
 const recurringOpen = ref(false);
 const helpOpen = ref(false);
 const updateOpen = ref(false);
@@ -52,7 +53,13 @@ const groups = computed(() => {
 });
 
 /** Today's unscheduled tasks, filed the way the user filed them: project -> step. */
-type HomeSection = { key: string; project: string | null; step: string | null; tasks: Task[] };
+type HomeSection = {
+  key: string;
+  project: string | null;
+  projectId: string | null;
+  step: string | null;
+  tasks: Task[];
+};
 
 const stepNames = ref<Record<string, string>>({});
 const collapsed = ref<Record<string, boolean>>({});
@@ -91,6 +98,7 @@ const homeSections = computed<HomeSection[]>(() => {
       map.set(key, {
         key,
         project: project?.name ?? null,
+        projectId: project?.id ?? null,
         step: project && task.nodeId ? stepNames.value[task.nodeId] ?? t("home.noStep") : null,
         tasks: [],
       });
@@ -135,6 +143,7 @@ const tabs = computed(() => [
 ]);
 
 function switchTab(k: "today" | "inbox") {
+  closeAllSheets();
   store.tab = k;
   if (k === "inbox") store.loadInbox();
 }
@@ -161,7 +170,7 @@ function openStats() {
   statsOpen.value = true;
 }
 
-function openProjects() {
+function openProjects(projectId: string | null = null) {
   closeOutOpen.value = false;
   settingsOpen.value = false;
   historyOpen.value = false;
@@ -169,7 +178,20 @@ function openProjects() {
   updateOpen.value = false;
   statsOpen.value = false;
   recurringOpen.value = false;
+  projectFocus.value = projectId;
   projectsOpen.value = true;
+}
+
+/** The tabs always win: whichever sheet is up, clicking 今天/收件箱 puts you back on the list. */
+function closeAllSheets() {
+  closeOutOpen.value = false;
+  settingsOpen.value = false;
+  historyOpen.value = false;
+  statsOpen.value = false;
+  projectsOpen.value = false;
+  recurringOpen.value = false;
+  updateOpen.value = false;
+  if (helpOpen.value) closeHelp();
 }
 
 function openRecurring() {
@@ -397,37 +419,47 @@ onUnmounted(() => {
             </template>
             <template v-else>
               <div v-for="sec in homeSections" :key="sec.key" class="mb-1.5">
-                <button
-                  class="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-left transition-colors hover:bg-paper-deep"
-                  :aria-expanded="!collapsed[sec.key]"
-                  @click="toggleSection(sec.key)"
-                >
-                  <ChevronDown
-                    :size="11"
-                    :stroke-width="2.4"
-                    class="shrink-0 text-ink-faint transition-transform duration-150"
-                    :class="collapsed[sec.key] ? '-rotate-90' : ''"
-                  />
-                  <span
-                    class="max-w-[42%] truncate text-[11px] font-medium tracking-[0.06em]"
-                    :class="sec.project ? 'text-accent/80' : 'text-ink-faint'"
+                <div class="flex items-center gap-0.5 rounded-lg pr-1.5 transition-colors hover:bg-paper-deep">
+                  <button
+                    class="flex h-[22px] w-[20px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
+                    :aria-expanded="!collapsed[sec.key]"
+                    :aria-label="collapsed[sec.key] ? t('home.expand') : t('home.collapse')"
+                    @click="toggleSection(sec.key)"
                   >
-                    {{ sec.project ?? t("home.ungrouped") }}
-                  </span>
-                  <template v-if="sec.step">
-                    <span class="text-line">·</span>
-                    <span class="min-w-0 truncate text-[11px] text-ink-soft">{{ sec.step }}</span>
-                  </template>
-                  <span
-                    v-if="overdueCount(sec.tasks)"
-                    class="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+                    <ChevronDown
+                      :size="11"
+                      :stroke-width="2.4"
+                      class="transition-transform duration-150"
+                      :class="collapsed[sec.key] ? '-rotate-90' : ''"
+                    />
+                  </button>
+                  <button
+                    class="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-1 text-left"
+                    :class="sec.projectId ? 'group/name' : 'cursor-default'"
+                    :title="sec.projectId ? t('home.openProject') : undefined"
+                    @click="sec.projectId ? openProjects(sec.projectId) : toggleSection(sec.key)"
                   >
-                    {{ t("home.overdue", { n: overdueCount(sec.tasks) }) }}
-                  </span>
-                  <span class="ml-auto shrink-0 text-[10.5px] tabular-nums text-ink-faint">
+                    <span
+                      class="max-w-[42%] truncate text-[11px] font-medium tracking-[0.06em]"
+                      :class="sec.project ? 'text-accent/80 group-hover/name:underline' : 'text-ink-faint'"
+                    >
+                      {{ sec.project ?? t("home.ungrouped") }}
+                    </span>
+                    <template v-if="sec.step">
+                      <span class="text-line">·</span>
+                      <span class="min-w-0 truncate text-[11px] text-ink-soft">{{ sec.step }}</span>
+                    </template>
+                    <span
+                      v-if="overdueCount(sec.tasks)"
+                      class="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+                    >
+                      {{ t("home.overdue", { n: overdueCount(sec.tasks) }) }}
+                    </span>
+                  </button>
+                  <span class="shrink-0 text-[10.5px] tabular-nums text-ink-faint">
                     {{ t("home.groupCount", { n: sec.tasks.length }) }}
                   </span>
-                </button>
+                </div>
                 <div v-if="!collapsed[sec.key]" class="rise ml-3 border-l border-line-soft">
                   <TaskRow v-for="task in sec.tasks" :key="task.id" :task="task" />
                 </div>
@@ -534,7 +566,7 @@ onUnmounted(() => {
       <CloseOutSheet v-if="closeOutOpen" @close="closeOutOpen = false" />
       <HistorySheet v-if="historyOpen" @close="historyOpen = false" />
       <StatsSheet v-if="statsOpen" @close="statsOpen = false" />
-      <ProjectSheet v-if="projectsOpen" @close="projectsOpen = false" />
+      <ProjectSheet v-if="projectsOpen" :focus="projectFocus" @close="projectsOpen = false" />
     <RecurringSheet v-if="recurringOpen" @close="recurringOpen = false" />
       <ClassSheet v-if="store.classTask" @close="store.closeClass()" />
       <HelpSheet v-if="helpOpen" @close="closeHelp" />

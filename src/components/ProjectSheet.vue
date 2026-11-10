@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   Archive,
   Check,
@@ -9,17 +9,19 @@ import {
   GitBranch,
   Plus,
   Trash2,
-  X,
 } from "lucide-vue-next";
 import { api, type Node, type Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
-import { dayLabel, t } from "@/lib/i18n";
+import TaskRow from "@/components/TaskRow.vue";
+import PanelShell from "@/components/PanelShell.vue";
+import { t } from "@/lib/i18n";
 import { PROJECT_NAME_MAX, validateProjectName } from "@/lib/classes";
 
 const store = useDayStore();
+const props = defineProps<{ focus?: string | null; node?: string | null }>();
 const emit = defineEmits<{ (e: "close"): void }>();
 
-type MenuKind = "project" | "node" | "task";
+type MenuKind = "project" | "node";
 type Menu = { kind: MenuKind; id: string; x: number; y: number };
 
 const view = ref<"tree" | "overview">("tree");
@@ -87,6 +89,27 @@ const bones = computed(() => {
 });
 const spineWidth = computed(() => Math.max(300, 120 + nodes.value.length * Math.min(104, Math.max(56, 460 / Math.max(nodes.value.length, 1)))));
 
+/* ---- overview modes ---- */
+
+const overviewMode = ref<"fishbone" | "bars" | "list">("fishbone");
+const detailStep = ref<string | null>(null);
+
+const stepRows = computed(() =>
+  nodes.value.map((node) => {
+    const mine = tasksOf(node.id);
+    const open = mine.filter((x) => !x.done);
+    return { node, total: mine.length, open: open.length, done: mine.length - open.length, openTasks: open };
+  }),
+);
+
+const detailTasks = computed(() => stepRows.value.find((r) => r.node.id === detailStep.value)?.openTasks ?? []);
+const detailTitle = computed(() => nodes.value.find((n) => n.id === detailStep.value)?.title ?? "");
+const totalOpen = computed(() => stepRows.value.reduce((sum, r) => sum + r.open, 0) + looseTasks.value.filter((x) => !x.done).length);
+
+function toggleDetail(id: string) {
+  detailStep.value = detailStep.value === id ? null : id;
+}
+
 async function load(id = activeId.value) {
   if (!id) {
     nodes.value = [];
@@ -114,22 +137,6 @@ async function reloadTasks() {
   }
 }
 
-async function toggleTask(task: Task) {
-  try {
-    await store.toggle(task);
-    await reloadTasks();
-  } catch {
-    error.value = t("stats.error");
-  }
-}
-
-function taskWhen(task: Task) {
-  if (task.bucket === "inbox") return t("capture.inbox");
-  const date = task.planDate ?? task.createdAt.slice(0, 10);
-  if (date === store.view?.date) return t("capture.today");
-  return dayLabel(date);
-}
-
 function pick(id: string) {
   activeId.value = id;
   editingId.value = null;
@@ -153,21 +160,15 @@ function closeMenu() {
   menu.value = null;
 }
 
-const menuTask = computed(() =>
-  menu.value?.kind === "task" ? projectTasks.value.find((x) => x.id === menu.value?.id) : null,
-);
 
 function editFromMenu() {
   const m = menu.value;
   if (!m) return;
   if (m.kind === "project") {
     startProjectEdit();
-  } else if (m.kind === "node") {
+  } else {
     const node = nodes.value.find((n) => n.id === m.id);
     if (node) startEdit(node);
-  } else {
-    const task = projectTasks.value.find((x) => x.id === m.id);
-    if (task) startTaskEdit(task);
   }
   closeMenu();
 }
@@ -178,11 +179,9 @@ async function deleteFromMenu() {
   if (!m) return;
   if (m.kind === "project") {
     await askRemove();
-  } else if (m.kind === "node") {
+  } else {
     const node = nodes.value.find((n) => n.id === m.id);
     if (node) await remove(node);
-  } else {
-    await dropTask(m.id);
   }
 }
 
@@ -191,19 +190,6 @@ async function addTaskFromMenu() {
   closeMenu();
   if (m?.kind !== "node") return;
   startAdding(m.id);
-}
-
-async function moveTo(nodeId: string | null) {
-  const task = menuTask.value;
-  closeMenu();
-  if (!task) return;
-  try {
-    await api.setTaskNode(task.id, nodeId);
-    await reloadTasks();
-    await store.refresh();
-  } catch {
-    error.value = t("stats.error");
-  }
 }
 
 /* ---- project ---- */
@@ -358,42 +344,13 @@ async function commitAdd() {
 
 /* ---- tasks ---- */
 
-const editingTaskId = ref<string | null>(null);
-const taskTitleDraft = ref("");
-let taskInput: HTMLInputElement | null = null;
-const grabTask = (el: unknown) => {
-  taskInput = (el as HTMLInputElement | null) ?? null;
-};
-
-function startTaskEdit(task: Task) {
-  editingTaskId.value = task.id;
-  taskTitleDraft.value = task.title;
-  void nextTick(() => taskInput?.select());
-}
-
-async function commitTaskEdit(task: Task) {
-  const title = taskTitleDraft.value.trim();
-  editingTaskId.value = null;
-  if (!title || title === task.title) return;
-  try {
-    const saved = await api.setTitle(task.id, title);
-    projectTasks.value = projectTasks.value.map((x) => (x.id === saved.id ? { ...x, title: saved.title } : x));
-    await store.refresh();
-  } catch {
-    error.value = t("stats.error");
-  }
-}
-
-async function dropTask(id: string) {
-  const task = projectTasks.value.find((x) => x.id === id);
-  if (!task) return;
-  try {
-    await store.drop(id);
-    await reloadTasks();
-  } catch {
-    error.value = t("stats.error");
-  }
-}
+/** TaskRow runs the same actions as home, so anything it changes needs re-reading. */
+watch(
+  () => store.view,
+  () => {
+    if (activeId.value) void reloadTasks();
+  },
+);
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
@@ -407,7 +364,11 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener("keydown", onKeydown);
   await store.loadClasses();
-  activeId.value = store.projects.find((p) => !p.archived)?.id ?? store.projects[0]?.id ?? null;
+  activeId.value =
+    props.focus ??
+    store.projects.find((p) => !p.archived)?.id ??
+    store.projects[0]?.id ??
+    null;
   await load();
 });
 
@@ -421,36 +382,27 @@ const menuRow =
 </script>
 
 <template>
-  <div class="absolute inset-0 z-30 flex flex-col bg-paper" @click="closeMenu">
-    <div class="flex items-center justify-between px-8 pb-1 pt-6">
-      <div class="flex items-baseline gap-3">
-        <h2 class="font-display text-[22px] tracking-tight">{{ t("nodes.title") }}</h2>
-        <span class="text-[11.5px] text-ink-faint">{{ t("nodes.subtitle") }}</span>
-      </div>
-      <div class="flex items-center gap-1">
-        <div class="mr-1 flex items-center gap-0.5 rounded-lg bg-paper-deep p-0.5">
-          <button
-            v-for="v in [
-              { key: 'tree', label: t('nodes.viewTree'), icon: GitBranch },
-              { key: 'overview', label: t('nodes.viewOverview'), icon: FolderTree },
-            ]"
-            :key="v.key"
-            class="flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] transition-colors"
-            :class="view === v.key ? 'bg-card text-ink shadow-[0_1px_3px_rgba(34,30,25,0.08)]' : 'text-ink-soft hover:text-ink'"
-            @click="view = v.key as 'tree' | 'overview'"
-          >
-            <component :is="v.icon" :size="11.5" :stroke-width="2" />
-            {{ v.label }}
-          </button>
-        </div>
-        <button :class="btn" :title="t('stats.close')" @click="emit('close')">
-          <X :size="15" :stroke-width="1.9" />
+  <PanelShell :title="t('nodes.title')" :subtitle="t('nodes.subtitle')" @close="emit('close')">
+    <template #actions>
+      <div class="flex items-center gap-0.5 rounded-lg bg-paper-deep p-0.5">
+        <button
+          v-for="v in [
+            { key: 'tree', label: t('nodes.viewTree'), icon: GitBranch },
+            { key: 'overview', label: t('nodes.viewOverview'), icon: FolderTree },
+          ]"
+          :key="v.key"
+          class="flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] transition-colors"
+          :class="view === v.key ? 'bg-card text-ink shadow-[0_1px_3px_rgba(34,30,25,0.08)]' : 'text-ink-soft hover:text-ink'"
+          @click="view = v.key as 'tree' | 'overview'"
+        >
+          <component :is="v.icon" :size="11.5" :stroke-width="2" />
+          {{ v.label }}
         </button>
       </div>
-    </div>
+    </template>
 
     <!-- Project picker -->
-    <div class="flex flex-wrap items-center gap-1.5 px-8 pb-2 pt-2">
+    <div class="-mt-1 flex flex-wrap items-center gap-1.5 pb-3">
       <button
         v-for="p in projects"
         :key="p.id"
@@ -481,8 +433,7 @@ const menuRow =
       </div>
     </div>
 
-    <div class="scroll-thin min-h-0 flex-1 overflow-y-auto px-8 pb-6">
-      <p v-if="error" class="mb-2 rounded-xl bg-warn-soft/60 px-3 py-2 text-[11.5px] text-warn">{{ error }}</p>
+    <p v-if="error" class="mb-2 rounded-xl bg-warn-soft/60 px-3 py-2 text-[11.5px] text-warn">{{ error }}</p>
 
       <div v-if="!active" class="flex flex-col items-center justify-center py-20 text-center">
         <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft">
@@ -568,16 +519,31 @@ const menuRow =
         <!-- ============ Overview: fishbone ============ -->
         <template v-else-if="view === 'overview'">
           <div class="rounded-2xl border border-line-soft bg-card px-3 py-3">
-            <div class="flex items-baseline gap-2 px-1">
+            <div class="flex items-center gap-2 px-1">
               <span class="text-[11px] font-medium tracking-[0.1em] text-ink-faint">{{ t("nodes.overview") }}</span>
-              <span class="text-[11px] text-ink-faint">
+              <span class="min-w-0 flex-1 truncate text-[11px] text-ink-faint">
                 {{ t("nodes.overviewHint", { n: nodes.length, tasks: projectTasks.length }) }}
               </span>
+              <div v-if="nodes.length" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-paper-deep p-0.5">
+                <button
+                  v-for="m in [
+                    { key: 'fishbone', label: t('nodes.overviewFishbone') },
+                    { key: 'bars', label: t('nodes.overviewBars') },
+                    { key: 'list', label: t('nodes.overviewList') },
+                  ]"
+                  :key="m.key"
+                  class="rounded-md px-1.5 py-0.5 text-[10.5px] transition-colors"
+                  :class="overviewMode === m.key ? 'bg-card text-ink shadow-[0_1px_3px_rgba(34,30,25,0.08)]' : 'text-ink-soft hover:text-ink'"
+                  @click="overviewMode = m.key as 'fishbone' | 'bars' | 'list'"
+                >
+                  {{ m.label }}
+                </button>
+              </div>
             </div>
             <div v-if="!nodes.length" class="py-10 text-center text-[12px] text-ink-faint">
               {{ t("nodes.emptyHint") }}
             </div>
-            <div v-else class="scroll-thin overflow-x-auto">
+            <div v-else-if="overviewMode === 'fishbone'" class="scroll-thin overflow-x-auto">
               <svg :width="spineWidth" height="252" class="mt-1">
                 <!-- spine -->
                 <line x1="24" :y1="126" :x2="spineWidth - 78" :y2="126" stroke="var(--color-line)" stroke-width="1.5" />
@@ -605,7 +571,12 @@ const menuRow =
                   </text>
                 </g>
                 <!-- bones -->
-                <g v-for="b in bones" :key="b.id">
+                <g
+                  v-for="b in bones"
+                  :key="b.id"
+                  class="cursor-pointer"
+                  @click="toggleDetail(b.id)"
+                >
                   <line
                     :x1="b.x"
                     y1="126"
@@ -638,12 +609,94 @@ const menuRow =
                   >
                     {{ t("nodes.boneCount", { open: b.open, total: b.total }) }}
                   </text>
+                  <line
+                    v-if="detailStep === b.id"
+                    :x1="b.x + 26"
+                    :y1="b.up ? 48 : 204"
+                    :x2="b.x + 26"
+                    :y2="126"
+                    stroke="var(--color-accent)"
+                    stroke-dasharray="2 2"
+                    stroke-opacity="0.5"
+                  />
                 </g>
               </svg>
             </div>
+            <!-- Bars: how far each step has got -->
+            <div v-else-if="overviewMode === 'bars'" class="mt-2 space-y-1">
+              <button
+                v-for="row in stepRows"
+                :key="row.node.id"
+                class="w-full rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-paper-deep"
+                @click="toggleDetail(row.node.id)"
+              >
+                <div class="flex items-baseline gap-2">
+                  <span
+                    class="min-w-0 flex-1 truncate text-[12.5px]"
+                    :class="row.node.done ? 'text-ink-faint line-through' : 'text-ink'"
+                  >
+                    {{ row.node.title }}
+                  </span>
+                  <span
+                    v-if="row.open"
+                    class="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn"
+                  >
+                    {{ t("nodes.overviewOpenTasks", { n: row.open }) }}
+                  </span>
+                  <span v-else class="shrink-0 text-[10.5px] text-accent">{{ t("nodes.overviewAllDone") }}</span>
+                  <span class="shrink-0 text-[10.5px] tabular-nums text-ink-faint">{{ row.done }}/{{ row.total }}</span>
+                </div>
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-paper-deep">
+                  <div
+                    class="h-full rounded-full transition-all duration-150"
+                    :class="row.node.done ? 'bg-accent' : 'bg-accent/55'"
+                    :style="{ width: row.total ? Math.round((row.done / row.total) * 100) + '%' : '0%' }"
+                  />
+                </div>
+              </button>
+              <p v-if="!stepRows.length" class="py-6 text-center text-[12px] text-ink-faint">{{ t("nodes.emptyHint") }}</p>
+            </div>
+
+            <!-- List: every unfinished line, grouped by step -->
+            <div v-else class="mt-2 space-y-2">
+              <div v-for="row in stepRows" :key="row.node.id">
+                <div class="flex items-baseline gap-2 px-1">
+                  <span class="text-[11.5px] font-medium" :class="row.node.done ? 'text-ink-faint line-through' : 'text-ink-soft'">
+                    {{ row.node.title }}
+                  </span>
+                  <span class="text-[10.5px] tabular-nums text-ink-faint">{{ row.done }}/{{ row.total }}</span>
+                </div>
+                <ul v-if="row.openTasks.length" class="mt-0.5 space-y-0.5 pl-2">
+                  <li v-for="task in row.openTasks" :key="task.id" class="flex items-center gap-1.5">
+                    <span class="h-1 w-1 shrink-0 rounded-full bg-ink-faint" />
+                    <span class="min-w-0 flex-1 truncate text-[12px] text-ink">{{ task.title }}</span>
+                  </li>
+                </ul>
+                <p v-else class="mt-0.5 pl-2 text-[10.5px] text-accent">{{ t("nodes.overviewAllDone") }}</p>
+              </div>
+              <p v-if="!stepRows.length" class="py-6 text-center text-[12px] text-ink-faint">{{ t("nodes.emptyHint") }}</p>
+            </div>
+
+            <!-- Whatever was clicked open: that step's unfinished lines -->
+            <div v-if="detailStep && overviewMode !== 'list'" class="mt-2 border-t border-line-soft pt-2">
+              <div class="flex items-baseline gap-2 px-1">
+                <span class="text-[11px] font-medium text-ink-soft">{{ detailTitle }}</span>
+                <span class="text-[10.5px] tabular-nums text-ink-faint">
+                  {{ t("nodes.overviewOpenTasks", { n: detailTasks.length }) }}
+                </span>
+              </div>
+              <ul v-if="detailTasks.length" class="mt-1 space-y-0.5">
+                <li v-for="task in detailTasks" :key="task.id">
+                  <TaskRow :task="task" />
+                </li>
+              </ul>
+              <p v-else class="mt-1 px-1 text-[11.5px] text-accent">{{ t("nodes.overviewAllDone") }}</p>
+            </div>
+
             <div class="mt-1 flex items-center gap-3 border-t border-line-soft px-1 pt-2 text-[11px] text-ink-faint">
               <span>{{ t("nodes.projectTasksCount", { n: openTasks }) }}</span>
               <span v-if="looseTasks.length">· {{ t("nodes.noStepTasks") }} {{ looseTasks.length }}</span>
+              <span v-if="totalOpen && overviewMode !== 'list'" class="ml-auto">{{ t("nodes.overviewTap") }}</span>
             </div>
           </div>
         </template>
@@ -716,44 +769,10 @@ const menuRow =
                   </button>
                 </div>
 
-                <!-- The tasks under this step -->
-                <ul v-if="tasksOf(node.id).length" class="mt-1 space-y-0.5 border-l border-line-soft pl-3">
-                  <li
-                    v-for="task in tasksOf(node.id)"
-                    :key="task.id"
-                    class="group/task flex items-center gap-2"
-                    @contextmenu="openMenu($event, 'task', task.id)"
-                  >
-                    <button
-                      class="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border transition-colors"
-                      :class="
-                        task.done
-                          ? 'border-accent/50 bg-accent/10 text-accent'
-                          : 'border-line text-transparent hover:border-accent hover:bg-accent-soft hover:text-accent'
-                      "
-                      :title="task.done ? t('nodes.reopen') : t('nodes.complete')"
-                      @click="toggleTask(task)"
-                    >
-                      <Check :size="9.5" :stroke-width="3" />
-                    </button>
-                    <input
-                      v-if="editingTaskId === task.id"
-                      :ref="grabTask"
-                      v-model="taskTitleDraft"
-                      class="min-w-0 flex-1 rounded-lg border border-accent/40 bg-card px-1.5 py-0.5 text-[12.5px] text-ink"
-                      @blur="commitTaskEdit(task)"
-                      @keydown.enter.prevent="commitTaskEdit(task)"
-                      @keydown.esc.prevent="editingTaskId = null"
-                    />
-                    <button
-                      v-else
-                      class="min-w-0 flex-1 truncate text-left text-[12.5px] leading-5 transition-colors hover:text-accent"
-                      :class="task.done ? 'text-ink-faint line-through' : 'text-ink'"
-                      @click="startTaskEdit(task)"
-                    >
-                      {{ task.title }}
-                    </button>
-                    <span v-if="!task.done" class="shrink-0 text-[10.5px] text-ink-faint">{{ taskWhen(task) }}</span>
+                <!-- The tasks under this step: same row, same menu as home -->
+                <ul v-if="tasksOf(node.id).length" class="mt-1 border-l border-line-soft pl-3">
+                  <li v-for="task in tasksOf(node.id)" :key="task.id">
+                    <TaskRow :task="task" />
                   </li>
                 </ul>
 
@@ -803,43 +822,9 @@ const menuRow =
               <h3 class="text-[12px] font-medium text-ink-soft">{{ t("nodes.noStepTasks") }}</h3>
               <span class="text-[11px] tabular-nums text-ink-faint">{{ looseTasks.length }}</span>
             </div>
-            <ul class="mt-1 space-y-0.5">
-              <li
-                v-for="task in looseTasks"
-                :key="task.id"
-                class="group/task flex items-center gap-2"
-                @contextmenu="openMenu($event, 'task', task.id)"
-              >
-                <button
-                  class="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border transition-colors"
-                  :class="
-                    task.done
-                      ? 'border-accent/50 bg-accent/10 text-accent'
-                      : 'border-line text-transparent hover:border-accent hover:bg-accent-soft hover:text-accent'
-                  "
-                  :title="task.done ? t('nodes.reopen') : t('nodes.complete')"
-                  @click="toggleTask(task)"
-                >
-                  <Check :size="9.5" :stroke-width="3" />
-                </button>
-                <input
-                  v-if="editingTaskId === task.id"
-                  :ref="grabTask"
-                  v-model="taskTitleDraft"
-                  class="min-w-0 flex-1 rounded-lg border border-accent/40 bg-card px-1.5 py-0.5 text-[12.5px] text-ink"
-                  @blur="commitTaskEdit(task)"
-                  @keydown.enter.prevent="commitTaskEdit(task)"
-                  @keydown.esc.prevent="editingTaskId = null"
-                />
-                <button
-                  v-else
-                  class="min-w-0 flex-1 truncate text-left text-[12.5px] leading-5 transition-colors hover:text-accent"
-                  :class="task.done ? 'text-ink-faint line-through' : 'text-ink'"
-                  @click="startTaskEdit(task)"
-                >
-                  {{ task.title }}
-                </button>
-                <span v-if="!task.done" class="shrink-0 text-[10.5px] text-ink-faint">{{ taskWhen(task) }}</span>
+            <ul class="mt-1">
+              <li v-for="task in looseTasks" :key="task.id">
+                <TaskRow :task="task" />
               </li>
             </ul>
           </div>
@@ -850,60 +835,36 @@ const menuRow =
           </div>
         </template>
       </template>
-    </div>
 
-    <!-- Right-click menu -->
-    <Teleport to="body">
-      <div v-if="menu" class="fixed inset-0 z-[60]" @click.stop="closeMenu" @contextmenu.prevent="closeMenu" />
-      <div
-        v-if="menu"
-        class="fixed z-[61] w-[176px] overflow-hidden rounded-xl border border-line bg-card py-1 shadow-[0_10px_28px_rgba(34,30,25,0.16)]"
-        :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
-      >
-        <button :class="menuRow" @click.stop="editFromMenu">
-          <span class="w-3.5 text-ink-faint">✎</span>
-          {{ t("nodes.menuEdit") }}
-        </button>
-        <template v-if="menu.kind === 'node'">
-          <button :class="menuRow" @click.stop="addTaskFromMenu">
-            <Plus :size="12" :stroke-width="2" class="text-ink-faint" />
-            {{ t("nodes.menuNewTask") }}
+      <!-- Right-click menu -->
+      <Teleport to="body">
+        <div v-if="menu" class="fixed inset-0 z-[60]" @click.stop="closeMenu" @contextmenu.prevent="closeMenu" />
+        <div
+          v-if="menu"
+          class="fixed z-[61] w-[176px] overflow-hidden rounded-xl border border-line bg-card py-1 shadow-[0_10px_28px_rgba(34,30,25,0.16)]"
+          :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
+        >
+          <button :class="menuRow" @click.stop="editFromMenu">
+            <span class="w-3.5 text-ink-faint">✎</span>
+            {{ t("nodes.menuEdit") }}
           </button>
-          <button :class="menuRow" @click.stop="deleteFromMenu">
-            <Trash2 :size="12" :stroke-width="2" class="text-warn" />
-            {{ t("nodes.menuDeleteStep") }}
-          </button>
-        </template>
-        <template v-else-if="menu.kind === 'task'">
-          <div class="mt-1 border-t border-line-soft px-2.5 pb-1 pt-1.5 text-[10.5px] text-ink-faint">
-            {{ t("nodes.menuMoveTo") }}
-          </div>
-          <button
-            v-for="n in nodes"
-            :key="n.id"
-            :class="menuRow"
-            class="pl-5"
-            :disabled="menuTask?.nodeId === n.id"
-            @click.stop="moveTo(n.id)"
-          >
-            <span class="min-w-0 truncate">{{ n.title }}</span>
-            <Check v-if="menuTask?.nodeId === n.id" :size="11" :stroke-width="2.4" class="ml-auto text-accent" />
-          </button>
-          <button :class="menuRow" class="pl-5" @click.stop="moveTo(null)">
-            {{ t("nodes.menuDetach") }}
-          </button>
-          <button :class="[menuRow, 'mt-1 border-t border-line-soft pt-2']" @click.stop="deleteFromMenu">
-            <Trash2 :size="12" :stroke-width="2" class="text-warn" />
-            {{ t("nodes.menuDelete") }}
-          </button>
-        </template>
-        <template v-else>
-          <button :class="menuRow" @click.stop="deleteFromMenu">
-            <Trash2 :size="12" :stroke-width="2" class="text-warn" />
-            {{ t("nodes.deleteProject") }}
-          </button>
-        </template>
-      </div>
-    </Teleport>
-  </div>
+          <template v-if="menu.kind === 'node'">
+            <button :class="menuRow" @click.stop="addTaskFromMenu">
+              <Plus :size="12" :stroke-width="2" class="text-ink-faint" />
+              {{ t("nodes.menuNewTask") }}
+            </button>
+            <button :class="menuRow" @click.stop="deleteFromMenu">
+              <Trash2 :size="12" :stroke-width="2" class="text-warn" />
+              {{ t("nodes.menuDeleteStep") }}
+            </button>
+          </template>
+          <template v-else>
+            <button :class="menuRow" @click.stop="deleteFromMenu">
+              <Trash2 :size="12" :stroke-width="2" class="text-warn" />
+              {{ t("nodes.deleteProject") }}
+            </button>
+          </template>
+        </div>
+      </Teleport>
+  </PanelShell>
 </template>

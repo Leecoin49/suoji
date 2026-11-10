@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import dayjs from "dayjs";
-import { CheckCircle2, RotateCcw, Trash2, X } from "lucide-vue-next";
+import { CheckCircle2, RotateCcw, Trash2 } from "lucide-vue-next";
 import { useDayStore } from "@/stores/day";
+import PanelShell from "@/components/PanelShell.vue";
 import { dayLabel, t, weekday } from "@/lib/i18n";
 
 const store = useDayStore();
@@ -55,22 +56,9 @@ async function drop(id: string) {
 </script>
 
 <template>
-  <div class="absolute inset-0 z-30 flex flex-col bg-paper">
-    <div class="flex items-center justify-between px-8 pb-1 pt-6">
-      <div class="flex items-baseline gap-3">
-        <h2 class="font-display text-[22px] tracking-tight">{{ t("history.title") }}</h2>
-        <span class="text-[11.5px] text-ink-faint">{{ t("history.subtitle") }}</span>
-      </div>
-      <button
-        class="rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink"
-        @click="emit('close')"
-      >
-        <X :size="15" :stroke-width="1.9" />
-      </button>
-    </div>
-
+  <PanelShell :title="t('history.title')" :subtitle="t('history.subtitle')" @close="emit('close')">
     <!-- Range -->
-    <div class="flex items-center justify-between px-8 pb-3 pt-2">
+    <div class="flex items-center justify-between pb-3 pt-0">
       <div class="flex items-center gap-0.5 rounded-xl bg-paper-deep p-1">
         <button
           v-for="r in ranges"
@@ -89,7 +77,7 @@ async function drop(id: string) {
       <span class="text-[11.5px] text-ink-faint">{{ t("history.total", { n: total }) }}</span>
     </div>
 
-    <div class="scroll-thin min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+    <div class="pb-1">
       <p v-if="loading" class="px-2.5 py-10 text-center text-[12.5px] text-ink-faint">
         {{ t("history.loading") }}
       </p>
@@ -163,5 +151,5 @@ async function drop(id: string) {
         </div>
       </section>
     </div>
-  </div>
+  </PanelShell>
 </template>

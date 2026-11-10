@@ -1,10 +1,11 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import dayjs from "dayjs";
-import { ChartColumn, X } from "lucide-vue-next";
+import { ChartColumn } from "lucide-vue-next";
 import { api, type StatsRaw } from "@/lib/api";
 import { dayLabel, fullDayLabel, isEn, t } from "@/lib/i18n";
 import { useDayStore } from "@/stores/day";
+import PanelShell from "@/components/PanelShell.vue";
 import {
   CLASS_ROWS_SHOWN,
   NO_CLASS,
@@ -520,26 +521,14 @@ onMounted(async () => {
   presetButtons.value[1]?.focus();
 });
 
-const btn =
-  "flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink";
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card";
 </script>
 
 <template>
-  <div class="absolute inset-0 z-30 flex flex-col bg-paper">
-    <div class="flex items-center justify-between px-8 pb-1 pt-6">
-      <div class="flex items-baseline gap-3">
-        <h2 class="font-display text-[22px] tracking-tight">{{ t("stats.title") }}</h2>
-        <span class="text-[11.5px] text-ink-faint">{{ t("stats.subtitle") }}</span>
-      </div>
-      <button :class="[btn, focusRing]" :title="t('stats.close')" @click="emit('close')">
-        <X :size="15" :stroke-width="1.9" />
-      </button>
-    </div>
-
+  <PanelShell :title="t('stats.title')" :subtitle="t('stats.subtitle')" @close="emit('close')">
     <!-- Range -->
-    <div class="flex items-center justify-between px-8 pb-2 pt-2">
+    <div class="flex items-center justify-between pb-2 pt-0">
       <div class="flex items-center gap-0.5 rounded-xl bg-paper-deep p-1">
         <button
           v-for="(r, i) in presets"
@@ -609,7 +598,7 @@ const focusRing =
       <span v-if="!check.ok" class="text-[11.5px] text-warn">{{ t("stats.rangeInvalid") }}</span>
     </div>
 
-    <div class="scroll-thin min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+    <div class="pb-1">
       <p v-if="failed" class="mb-2 rounded-xl bg-warn-soft/60 px-3 py-2 text-[11.5px] text-warn">
         {{ t("stats.error") }}
       </p>
@@ -1128,5 +1117,5 @@ const focusRing =
         </section>
       </template>
     </div>
-  </div>
+  </PanelShell>
 </template>

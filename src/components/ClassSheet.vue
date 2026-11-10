@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { Check, FolderPlus, Loader2, Tag as TagIcon, X } from "lucide-vue-next";
+import { computed, nextTick, ref } from "vue";
+import { Check, Loader2, Plus, Tag as TagIcon, X } from "lucide-vue-next";
 import { useDayStore } from "@/stores/day";
 import { t } from "@/lib/i18n";
 import {
@@ -20,6 +20,33 @@ const error = ref("");
 
 const projectDraft = ref("");
 const tagDraft = ref("");
+const addingProject = ref(false);
+const addingTag = ref(false);
+const projectInput = ref<HTMLInputElement | null>(null);
+const tagInput = ref<HTMLInputElement | null>(null);
+
+function startAdding(kind: "project" | "tag") {
+  error.value = "";
+  if (kind === "project") {
+    addingProject.value = true;
+    projectDraft.value = "";
+    void nextTick(() => projectInput.value?.focus());
+  } else {
+    addingTag.value = true;
+    tagDraft.value = "";
+    void nextTick(() => tagInput.value?.focus());
+  }
+}
+
+function cancelAdding(kind: "project" | "tag") {
+  if (kind === "project") {
+    addingProject.value = false;
+    projectDraft.value = "";
+  } else {
+    addingTag.value = false;
+    tagDraft.value = "";
+  }
+}
 
 const openProjects = computed(() => store.projects.filter((p) => !p.archived));
 const currentProject = computed(() => task.value?.projectId ?? null);
@@ -83,6 +110,7 @@ async function createProject() {
   try {
     const saved = await store.saveProject(check.name);
     projectDraft.value = "";
+    addingProject.value = false;
     await pick(saved.id);
   } catch (e) {
     error.value = String(e).includes("duplicate") ? t("stats.nameTaken") : t("stats.error");
@@ -106,6 +134,7 @@ async function createTag() {
   try {
     const saved = await store.saveTag(check.name);
     tagDraft.value = "";
+    addingTag.value = false;
     await store.setTaskTags(task.value?.id ?? "", [...chosenTags.value, saved.id]);
   } catch (e) {
     error.value = String(e).includes("duplicate") ? t("stats.nameTaken") : t("stats.error");
@@ -167,22 +196,24 @@ async function createTag() {
             <Check v-if="currentProject === p.id" :size="11" :stroke-width="3" />
             {{ p.name }}
           </button>
-        </div>
-        <div class="mt-2 flex items-center gap-1.5">
           <input
+            v-if="addingProject"
+            ref="projectInput"
             v-model="projectDraft"
             :maxlength="PROJECT_NAME_MAX"
             :placeholder="t('stats.newProject')"
-            class="min-w-0 flex-1 rounded-lg border border-line bg-paper px-2 py-1 text-[12px] text-ink placeholder:text-ink-faint focus:border-accent/40"
+            class="w-[104px] rounded-full border border-accent/40 bg-paper px-2.5 py-1 text-[12px] text-ink placeholder:text-ink-faint focus:outline-none"
             @keydown.enter.prevent="createProject"
+            @keydown.esc.prevent="cancelAdding('project')"
+            @blur="projectDraft.trim() ? null : cancelAdding('project')"
           />
           <button
-            class="flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] text-accent transition-colors hover:bg-accent-soft disabled:opacity-40"
-            :disabled="busy"
-            @click="createProject"
+            v-else
+            class="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-dashed border-line text-ink-faint transition-colors hover:border-accent/40 hover:text-accent"
+            :title="t('stats.newProject')"
+            @click="startAdding('project')"
           >
-            <FolderPlus :size="12" :stroke-width="2" />
-            {{ t("stats.create") }}
+            <Plus :size="12" :stroke-width="2.2" />
           </button>
         </div>
       </div>
@@ -210,24 +241,48 @@ async function createTag() {
             <TagIcon v-if="chosenTags.includes(tag.id)" :size="10" :stroke-width="2.4" />
             {{ tag.name }}
           </button>
-        </div>
-        <p v-else class="mt-1.5 text-[11.5px] text-ink-faint">{{ t("stats.classEmptyHint") }}</p>
-        <div class="mt-2 flex items-center gap-1.5">
           <input
+            v-if="addingTag"
+            ref="tagInput"
             v-model="tagDraft"
             :maxlength="TAG_NAME_MAX"
             :placeholder="t('stats.newTag')"
-            class="min-w-0 flex-1 rounded-lg border border-line bg-paper px-2 py-1 text-[12px] text-ink placeholder:text-ink-faint focus:border-accent/40"
+            class="w-[96px] rounded-full border border-accent/40 bg-paper px-2.5 py-1 text-[12px] text-ink placeholder:text-ink-faint focus:outline-none"
             @keydown.enter.prevent="createTag"
+            @keydown.esc.prevent="cancelAdding('tag')"
+            @blur="tagDraft.trim() ? null : cancelAdding('tag')"
           />
           <button
-            class="rounded-lg px-2 py-1 text-[11.5px] text-accent transition-colors hover:bg-accent-soft disabled:opacity-40"
-            :disabled="busy"
-            @click="createTag"
+            v-else
+            class="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-dashed border-line text-ink-faint transition-colors hover:border-accent/40 hover:text-accent"
+            :title="t('stats.newTag')"
+            @click="startAdding('tag')"
           >
-            {{ t("stats.create") }}
+            <Plus :size="12" :stroke-width="2.2" />
           </button>
         </div>
+        <p v-else class="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-faint">
+          {{ t("stats.classEmptyHint") }}
+          <button
+            class="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-dashed border-line text-ink-faint transition-colors hover:border-accent/40 hover:text-accent"
+            :title="t('stats.newTag')"
+            @click="startAdding('tag')"
+          >
+            <Plus :size="12" :stroke-width="2.2" />
+          </button>
+        </p>
+        <input
+          v-if="!store.tags.length && addingTag"
+          ref="tagInput"
+          v-model="tagDraft"
+          :maxlength="TAG_NAME_MAX"
+          :placeholder="t('stats.newTag')"
+          class="mt-1.5 w-[96px] rounded-full border border-accent/40 bg-paper px-2.5 py-1 text-[12px] text-ink placeholder:text-ink-faint focus:outline-none"
+          @keydown.enter.prevent="createTag"
+          @keydown.esc.prevent="cancelAdding('tag')"
+          @blur="tagDraft.trim() ? null : cancelAdding('tag')"
+        />
+
       </div>
 
       <div class="mt-3 flex min-h-[18px] items-center justify-between gap-2">

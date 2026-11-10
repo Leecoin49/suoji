@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import dayjs from "dayjs";
-import { Plus, Repeat, Trash2, X } from "lucide-vue-next";
+import { Plus, Repeat, Trash2 } from "lucide-vue-next";
 import { useDayStore } from "@/stores/day";
+import PanelShell from "@/components/PanelShell.vue";
 import { t } from "@/lib/i18n";
 import type { Recurrence } from "@/lib/api";
 
@@ -107,22 +108,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="absolute inset-0 z-30 flex flex-col bg-paper">
-    <div class="flex items-start justify-between px-8 pb-1 pt-6">
-      <div>
-        <h2 class="font-display text-[19px] leading-7 text-ink">{{ t("repeat.title") }}</h2>
-        <p class="mt-0.5 text-[11.5px] text-ink-faint">{{ t("repeat.subtitle") }}</p>
-      </div>
-      <button
-        class="flex h-8 w-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-paper-deep hover:text-ink"
-        :title="t('stats.close')"
-        @click="emit('close')"
-      >
-        <X :size="14" :stroke-width="1.8" />
-      </button>
-    </div>
-
-    <div class="scroll-thin flex-1 overflow-y-auto px-8 pb-8">
+  <PanelShell :title="t('repeat.title')" :subtitle="t('repeat.subtitle')" @close="emit('close')">
+    <div class="pb-1 pt-1">
       <!-- new rule -->
       <div class="mt-3 rounded-2xl bg-card p-4">
         <div class="flex items-center gap-2">
@@ -244,5 +231,5 @@ onMounted(async () => {
         </li>
       </ul>
     </div>
-  </div>
+  </PanelShell>
 </template>
