@@ -140,6 +140,25 @@ pub fn list_inbox(db: State<Db>) -> Result<Vec<Task>, String> {
     Ok(rows)
 }
 
+/// Everything filed under one project, undone first, then by the day it sits on.
+#[tauri::command]
+pub fn list_project_tasks(db: State<Db>, project_id: String) -> Result<Vec<Task>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(&format!(
+            "{SELECT} WHERE deleted = 0 AND project_id = ?1 \
+             ORDER BY done ASC, COALESCE(plan_date, '9999-12-31') ASC, sort_order ASC, created_at ASC"
+        ))
+        .map_err(|e| e.to_string())?;
+    let mut rows: Vec<Task> = stmt
+        .query_map(params![project_id], Task::from_row)
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| e.to_string())?;
+    attach_tags(&conn, &mut rows).map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
 /// target: "today" | "inbox" | "YYYY-MM-DD"
 #[tauri::command]
 pub fn add_task(

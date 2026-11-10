@@ -108,6 +108,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_day,
             commands::list_inbox,
+            commands::list_project_tasks,
             commands::add_task,
             commands::set_done,
             commands::set_note,

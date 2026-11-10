@@ -120,6 +120,7 @@ export interface StatsRaw {
 export const api = {
   getDay: () => invoke<DayView>("get_day"),
   listInbox: () => invoke<Task[]>("list_inbox"),
+  listProjectTasks: (projectId: string) => invoke<Task[]>("list_project_tasks", { projectId }),
   listDoneHistory: (days = 30) => invoke<Task[]>("list_done_history", { days }),
   getStats: (start: string, end: string) => invoke<StatsRaw>("get_stats", { start, end }),
   listClasses: () => invoke<Classes>("list_classes"),

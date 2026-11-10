@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import { Archive, Check, CircleDashed, CornerDownRight, FolderTree, Plus, Trash2, X } from "lucide-vue-next";
-import { api, type Node } from "@/lib/api";
+import { api, type Node, type Task } from "@/lib/api";
 import { useDayStore } from "@/stores/day";
-import { t } from "@/lib/i18n";
+import { dayLabel, t } from "@/lib/i18n";
 import { PROJECT_NAME_MAX, validateProjectName } from "@/lib/classes";
 
 const store = useDayStore();
 const emit = defineEmits<{ (e: "close"): void }>();
 
 const nodes = ref<Node[]>([]);
+const projectTasks = ref<Task[]>([]);
 const activeId = ref<string | null>(store.projects.find((p) => !p.archived)?.id ?? null);
 const loading = ref(false);
 const draft = ref("");
@@ -32,16 +33,35 @@ const firstOpenId = computed(() => nodes.value.find((n) => !n.done)?.id ?? null)
 async function load(id = activeId.value) {
   if (!id) {
     nodes.value = [];
+    projectTasks.value = [];
     return;
   }
   loading.value = true;
   try {
-    nodes.value = await api.listNodes(id);
+    const [chain, filed] = await Promise.all([api.listNodes(id), api.listProjectTasks(id)]);
+    nodes.value = chain;
+    projectTasks.value = filed;
   } catch {
     error.value = t("stats.error");
   } finally {
     loading.value = false;
   }
+}
+
+async function toggleTask(task: Task) {
+  try {
+    await store.toggle(task);
+    if (activeId.value) projectTasks.value = await api.listProjectTasks(activeId.value);
+  } catch {
+    error.value = t("stats.error");
+  }
+}
+
+function taskWhen(task: Task) {
+  if (task.bucket === "inbox") return t("capture.inbox");
+  const date = task.planDate ?? task.createdAt.slice(0, 10);
+  if (date === store.view?.date) return t("capture.today");
+  return dayLabel(date);
 }
 
 function pick(id: string) {
@@ -364,6 +384,42 @@ onMounted(async () => {
           >
             {{ t("nodes.add") }}
           </button>
+        </div>
+
+        <!-- What is actually filed under this project -->
+        <div class="mt-6 border-t border-line-soft pt-3">
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-[12.5px] font-medium text-ink-soft">{{ t("nodes.projectTasks") }}</h3>
+            <span class="text-[11px] tabular-nums text-ink-faint">
+              {{ t("nodes.projectTasksCount", { n: projectTasks.filter((x) => !x.done).length }) }}
+            </span>
+          </div>
+          <p v-if="!projectTasks.length" class="mt-2 text-[11.5px] text-ink-faint">
+            {{ t("nodes.projectTasksEmpty") }}
+          </p>
+          <ul v-else class="mt-2 space-y-0.5">
+            <li v-for="task in projectTasks" :key="task.id" class="group flex items-center gap-2 py-0.5">
+              <button
+                class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border transition-colors"
+                :class="
+                  task.done
+                    ? 'border-accent/50 bg-accent/10 text-accent'
+                    : 'border-line text-transparent hover:border-accent hover:bg-accent-soft hover:text-accent'
+                "
+                :title="task.done ? t('nodes.reopen') : t('nodes.complete')"
+                @click="toggleTask(task)"
+              >
+                <Check :size="10" :stroke-width="3" />
+              </button>
+              <span
+                class="min-w-0 flex-1 truncate text-[13px]"
+                :class="task.done ? 'text-ink-faint line-through' : 'text-ink'"
+              >
+                {{ task.title }}
+              </span>
+              <span v-if="!task.done" class="shrink-0 text-[11px] text-ink-faint">{{ taskWhen(task) }}</span>
+            </li>
+          </ul>
         </div>
       </template>
     </div>

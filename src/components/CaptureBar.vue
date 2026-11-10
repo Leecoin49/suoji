@@ -203,6 +203,7 @@ defineExpose({ focus });
               class="w-full rounded-lg border border-line bg-paper px-2 py-1 text-[12px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent/45"
               :placeholder="t('stats.newProject')"
               spellcheck="false"
+              @blur="commitCreate()"
               @keydown.enter.prevent="commitCreate()"
               @keydown.esc.stop.prevent="cancelCreate()"
             />
